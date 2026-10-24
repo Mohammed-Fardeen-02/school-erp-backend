@@ -1,0 +1,33 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Baseline system audit log for platform auditability and security compliance.
+/// Business models for ERP domains (students, attendance, fees, etc.) will be introduced
+/// through domain-specific migrations following docs/architecture/DATABASE_CONVENTIONS.md
+model AuditLog {
+  id         String   @id @default(uuid())
+  schoolId   String?  @map("school_id")
+  userId     String?  @map("user_id")
+  action     String   @db.VarChar(100)
+  entity     String   @db.VarChar(100)
+  entityId   String?  @map("entity_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId])
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

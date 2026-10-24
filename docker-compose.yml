@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: school_erp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: school_erp_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d school_erp_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: school_erp_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: school_erp_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: 'postgresql://postgres:postgrespassword@postgres:5432/school_erp_dev?schema=public'
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      API_PREFIX: /api/v1
+      JWT_ACCESS_SECRET: 'development-only-jwt-access-secret-minimum-32-chars-long'
+      JWT_REFRESH_SECRET: 'development-only-jwt-refresh-secret-minimum-32-chars-long'
+    ports:
+      - '5000:5000'
+
+volumes:
+  postgres_data:
+  redis_data:

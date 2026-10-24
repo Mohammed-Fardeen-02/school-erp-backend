@@ -1,0 +1,2 @@
+# Migrations directory
+# Prisma migration files will be generated here upon running `npm run prisma:migrate:dev`
