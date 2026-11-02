@@ -11,6 +11,7 @@ vi.mock('./workspace.repository', () => ({
     setPrimaryOrganization: vi.fn(),
     resolveLocation: vi.fn(),
     getEnabledModules: vi.fn(),
+    listMembers: vi.fn(),
   },
 }));
 
@@ -154,6 +155,34 @@ describe('WorkspaceService', () => {
       const result = await workspaceService.setPrimaryOrganization('user-1', 'org-2');
       expect(workspaceRepository.setPrimaryOrganization).toHaveBeenCalledWith('user-1', 'org-2');
       expect(result).toEqual(updatedMem);
+    });
+  });
+
+  describe('listMembers', () => {
+    it('should forward search and pagination filters to workspaceRepository', async () => {
+      const mockResult = {
+        members: [
+          {
+            id: 'user-1',
+            email: 'john@example.com',
+            firstName: 'John',
+            lastName: 'Doe',
+            phone: '+1234567890',
+            isActive: true,
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      };
+      vi.mocked(workspaceRepository.listMembers).mockResolvedValue(mockResult as any);
+
+      const filters = { search: 'john', page: 1, limit: 20 };
+      const result = await workspaceService.listMembers('org-1', filters);
+
+      expect(workspaceRepository.listMembers).toHaveBeenCalledWith('org-1', filters);
+      expect(result).toEqual(mockResult);
     });
   });
 });

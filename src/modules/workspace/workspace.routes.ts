@@ -2,10 +2,12 @@ import { Router } from 'express';
 import { workspaceController } from './workspace.controller';
 import { authenticate } from '../../core/middleware/authenticate';
 import { requireTenantContext } from '../../core/middleware/tenant-context';
+import { requireAnyPermission } from '../../core/middleware/permission.middleware';
 import { validateRequest } from '../../core/middleware/validate-request';
 import {
   selectWorkspaceContextSchema,
   setPrimaryOrganizationSchema,
+  memberQuerySchema,
 } from './workspace.validation';
 
 export const workspaceRoutes: Router = Router();
@@ -25,7 +27,7 @@ workspaceRoutes.post(
 workspaceRoutes.get(
   '/current',
   authenticate,
-  requireTenantContext({ requireActiveTenant: true, requireActiveLocation: false }),
+  requireTenantContext({ requireLocation: false }),
   workspaceController.getCurrent
 );
 
@@ -36,4 +38,18 @@ workspaceRoutes.put(
   validateRequest({ body: setPrimaryOrganizationSchema }),
   workspaceController.setPrimaryOrganization
 );
+
+// List active members of the current organization workspace
+workspaceRoutes.get(
+  '/members',
+  authenticate,
+  requireTenantContext({ requireLocation: false }),
+  validateRequest({ query: memberQuerySchema }),
+  requireAnyPermission([
+    'settings.user_assignments.allocations.assign',
+    'settings.user_assignments.allocations.view',
+  ]),
+  workspaceController.listMembers
+);
+
 

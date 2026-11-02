@@ -56,3 +56,27 @@ export interface WorkspaceContextResponse {
   enabledModules: string[];
 }
 
+export interface MemberFilterOptions {
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface WorkspaceMemberSummaryDto {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  isActive: boolean;
+}
+
+export interface ListMembersResult {
+  members: WorkspaceMemberSummaryDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+

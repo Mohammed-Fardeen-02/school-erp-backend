@@ -3,6 +3,8 @@ import {
   SelectWorkspaceContextDto,
   WorkspaceContextResponse,
   UserOrganizationSummary,
+  MemberFilterOptions,
+  ListMembersResult,
 } from './workspace.types';
 import { AppError } from '../../core/errors/app-error';
 import { ErrorCode } from '../../core/errors/error-codes';
@@ -154,6 +156,13 @@ export class WorkspaceService {
       .catch(() => {});
 
     return updatedMembership;
+  }
+
+  async listMembers(
+    organizationId: string,
+    filters: MemberFilterOptions = {}
+  ): Promise<ListMembersResult> {
+    return workspaceRepository.listMembers(organizationId, filters);
   }
 }
 

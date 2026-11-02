@@ -61,6 +61,35 @@ export class WorkspaceController {
       next(error);
     }
   }
+
+  listMembers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const organizationId = req.organizationId!;
+      const query = req.query as any;
+
+      const filters = {
+        search: query.search as string | undefined,
+        page: query.page as number | undefined,
+        limit: query.limit as number | undefined,
+      };
+
+      const result = await workspaceService.listMembers(organizationId, filters);
+
+      ResponseHelper.ok(
+        res,
+        result.members,
+        'Organization members retrieved successfully',
+        {
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages,
+        }
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export const workspaceController = new WorkspaceController();

@@ -363,7 +363,7 @@ export class UserRolesService {
       select: { locationId: true },
     });
 
-    const uniqueCampusIds = Array.from(
+    const uniqueCampusIds: string[] = Array.from(
       new Set(
         callerRoles
           .map((r: any) => r.locationId)

@@ -183,7 +183,7 @@ export class RolesService {
     }
 
     // 2. Validate and resolve permission nodes if provided
-    let resolvedGrants: Array<{ nodeId: string; nodeCode: string; isGranted: boolean }> = [];
+    let resolvedGrants: Array<{ nodeId: string; nodeCode: string; isGranted: boolean | null }> = [];
     if (data.permissions && data.permissions.length > 0) {
       resolvedGrants = await this.resolveAndValidateNodes(data.permissions);
 

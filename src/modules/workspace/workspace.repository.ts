@@ -1,7 +1,12 @@
 import { prisma } from '../../core/database/prisma-client';
 import { AppError } from '../../core/errors/app-error';
 import { ErrorCode } from '../../core/errors/error-codes';
-import { UserOrganizationSummary } from './workspace.types';
+import {
+  UserOrganizationSummary,
+  MemberFilterOptions,
+  WorkspaceMemberSummaryDto,
+  ListMembersResult,
+} from './workspace.types';
 
 export class WorkspaceRepository {
   private get membershipClient() {
@@ -222,6 +227,83 @@ export class WorkspaceRepository {
     });
 
     return modules.map((m: any) => m.moduleId);
+  }
+
+  /**
+   * Lists active members of an organization with search and pagination.
+   */
+  async listMembers(
+    organizationId: string,
+    filters: MemberFilterOptions = {}
+  ): Promise<ListMembersResult> {
+    const page = filters.page && filters.page > 0 ? filters.page : 1;
+    const limit = filters.limit && filters.limit > 0 ? Math.min(filters.limit, 100) : 20;
+    const skip = (page - 1) * limit;
+
+    const search = filters.search?.trim();
+
+    const whereClause: any = {
+      organizationId,
+      status: 'ACTIVE',
+      user: {
+        isActive: true,
+        ...(search && {
+          OR: [
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+      },
+    };
+
+    const [records, total] = await Promise.all([
+      this.membershipClient.findMany({
+        where: whereClause,
+        select: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              isActive: true,
+            },
+          },
+        },
+        orderBy: [
+          { user: { firstName: 'asc' } },
+          { user: { lastName: 'asc' } },
+          { userId: 'asc' },
+        ],
+        skip,
+        take: limit,
+      }),
+      this.membershipClient.count({
+        where: whereClause,
+      }),
+    ]);
+
+    const members: WorkspaceMemberSummaryDto[] = records.map((r: any) => ({
+      id: r.user.id,
+      email: r.user.email,
+      firstName: r.user.firstName,
+      lastName: r.user.lastName,
+      phone: r.user.phone,
+      isActive: r.user.isActive,
+    }));
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      members,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 }
 
