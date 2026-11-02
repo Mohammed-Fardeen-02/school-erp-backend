@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { workspaceService } from './workspace.service';
 import { workspaceRepository } from './workspace.repository';
 import { AppError } from '../../core/errors/app-error';
-import { prisma } from '../../core/database/prisma-client';
+// (prisma client not needed here)
 
 vi.mock('./workspace.repository', () => ({
   workspaceRepository: {
