@@ -3,11 +3,22 @@ import app from './app';
 import { env } from './config/env';
 import { logger } from './core/logger/app-logger';
 import { prisma } from './core/database/prisma-client';
+import { initializeEventHandlers } from './events/handlers';
+import { startWorkers, stopWorkers } from './jobs/workers';
 
 const server = http.createServer(app);
 
 const startServer = async () => {
   try {
+    // 1. Initialize domain event listeners
+    initializeEventHandlers();
+
+    // 2. Start background BullMQ workers if Redis is configured
+    if (env.REDIS_HOST) {
+      await startWorkers();
+    }
+
+    // 3. Listen on port
     server.listen(env.PORT, () => {
       logger.info(`🚀 [${env.APP_NAME}] running in ${env.NODE_ENV} mode on port ${env.PORT}`);
       logger.info(`📖 API Documentation available at http://localhost:${env.PORT}/docs`);
@@ -26,11 +37,12 @@ const handleGracefulShutdown = (signal: string) => {
     logger.info('HTTP server closed.');
 
     try {
+      await stopWorkers();
       await prisma.$disconnect();
-      logger.info('Database connection pool disconnected.');
+      logger.info('Database and queue resources cleanly disconnected.');
       process.exit(0);
     } catch (err) {
-      logger.error({ err }, 'Error during database disconnect');
+      logger.error({ err }, 'Error during graceful disconnect');
       process.exit(1);
     }
   });
@@ -45,12 +57,12 @@ const handleGracefulShutdown = (signal: string) => {
 process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
 
-process.on('uncaughtException', error => {
+process.on('uncaughtException', (error) => {
   logger.fatal({ err: error }, 'Uncaught Exception detected! Shutting down process.');
   process.exit(1);
 });
 
-process.on('unhandledRejection', reason => {
+process.on('unhandledRejection', (reason) => {
   logger.fatal({ reason }, 'Unhandled Promise Rejection detected! Shutting down process.');
   process.exit(1);
 });

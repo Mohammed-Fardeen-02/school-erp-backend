@@ -19,9 +19,18 @@ setInterval(() => {
   }
 }, 60000).unref();
 
-export function rateLimiter(options?: { windowMs?: number; max?: number }) {
+export interface RateLimiterOptions {
+  windowMs?: number;
+  max?: number;
+  prefix?: string;
+  message?: string;
+}
+
+export function rateLimiter(options?: RateLimiterOptions) {
   const windowMs = options?.windowMs ?? env.RATE_LIMIT_WINDOW_MS;
   const maxRequests = options?.max ?? env.RATE_LIMIT_MAX_REQUESTS;
+  const prefix = options?.prefix ?? 'global';
+  const customMessage = options?.message;
 
   return (req: Request, res: Response, next: NextFunction): void => {
     // In test environment, bypass rate limiter
@@ -30,7 +39,7 @@ export function rateLimiter(options?: { windowMs?: number; max?: number }) {
     }
 
     const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
-    const key = `ratelimit:${clientIp}`;
+    const key = `ratelimit:${prefix}:${clientIp}`;
     const now = Date.now();
 
     const record = memoryStore.get(key);
@@ -53,9 +62,10 @@ export function rateLimiter(options?: { windowMs?: number; max?: number }) {
     res.setHeader('X-RateLimit-Reset', Math.ceil(record.resetTime / 1000));
 
     if (record.count > maxRequests) {
+      const waitSeconds = Math.ceil((record.resetTime - now) / 1000);
       return next(
         AppError.rateLimit(
-          `Rate limit exceeded. Try again in ${Math.ceil((record.resetTime - now) / 1000)} seconds.`
+          customMessage || `Too many requests from this IP. Please try again in ${waitSeconds} seconds.`
         )
       );
     }
@@ -63,3 +73,46 @@ export function rateLimiter(options?: { windowMs?: number; max?: number }) {
     next();
   };
 }
+
+/**
+ * Dedicated Rate Limiter for Authentication Sign-in:
+ * 5 attempts per 15 minutes per IP.
+ */
+export const loginRateLimiter = rateLimiter({
+  prefix: 'auth_login',
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many login attempts. Please wait 15 minutes before trying again.',
+});
+
+/**
+ * Dedicated Rate Limiter for Forgot Password:
+ * 3 requests per 15 minutes per IP.
+ */
+export const forgotPasswordRateLimiter = rateLimiter({
+  prefix: 'auth_forgot',
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: 'Too many password reset requests. Please wait 15 minutes before trying again.',
+});
+
+/**
+ * Dedicated Rate Limiter for Password Reset Consumption:
+ * 5 attempts per 15 minutes per IP.
+ */
+export const resetPasswordRateLimiter = rateLimiter({
+  prefix: 'auth_reset',
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many password reset attempts. Please wait 15 minutes before trying again.',
+});
+
+/**
+ * Dedicated Rate Limiter for Refresh Token Rotation:
+ * 30 requests per 15 minutes per IP.
+ */
+export const refreshRateLimiter = rateLimiter({
+  prefix: 'auth_refresh',
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+});

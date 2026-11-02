@@ -14,8 +14,13 @@ const envSchema = z.object({
 
   DATABASE_URL: z
     .string()
-    .url()
-    .default('postgresql://postgres:postgres@localhost:5432/school_erp_dev?schema=public'),
+    .optional()
+    .default('postgresql://postgres:postgres@localhost:5432/school_erp_dev?schema=public')
+    .transform(val =>
+      val && val.trim() !== ''
+        ? val
+        : 'postgresql://postgres:postgres@localhost:5432/school_erp_dev?schema=public'
+    ),
 
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
@@ -39,12 +44,21 @@ const envSchema = z.object({
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
-  REDIS_HOST: z.string().default('localhost'),
+  REDIS_HOST: z
+    .string()
+    .optional()
+    .default('localhost')
+    .transform(val => (val && val.trim() !== '' ? val : 'localhost')),
   REDIS_PORT: z
     .string()
+    .optional()
     .default('6379')
-    .transform(val => parseInt(val, 10)),
+    .transform(val => (val && val.trim() !== '' ? parseInt(val, 10) : 6379)),
   REDIS_PASSWORD: z.string().optional().default(''),
+
+  // Super Admin Bootstrap Credentials
+  SUPER_ADMIN_EMAIL: z.string().email().optional().default('superadmin@schoolerp.io'),
+  SUPER_ADMIN_PASSWORD: z.string().optional().default(''),
 });
 
 const parseEnv = () => {

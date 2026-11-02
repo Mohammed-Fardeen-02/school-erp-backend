@@ -9,3 +9,5 @@ export const REGEX_PATTERNS = {
   POSTAL_CODE: /^[A-Z0-9 -]{3,10}$/i,
   SLUG: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
 } as const;
+
+export * from './modules';

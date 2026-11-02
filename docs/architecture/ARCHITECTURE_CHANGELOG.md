@@ -32,6 +32,32 @@ The School ERP system needs to support multi-school tenant operations across 25+
 
 ---
 
+## [ADR-002] Multi-Schema PostgreSQL Partitioning, Decoupled Session Lifecycle, and Real-Time Token Invalidation
+
+- **Date**: 2026-11-01
+- **Status**: Accepted & Implemented (Phase 1)
+- **Architect**: Senior Security & Platform Architect
+
+### Context & Problem Statement
+
+The ERP requires true multi-tenant scaling with clean domain isolation, reliable refresh token reuse/theft detection, instant access token invalidation upon password reset, and separation of device sessions from individual rotated tokens.
+
+### Decision
+
+1. Enable PostgreSQL multi-schema partitioning via Prisma `multiSchema` feature (`auth`, `organization`, `platform`, `audit`).
+2. Separate device sessions (`auth.sessions`) from refresh token rotation chains (`auth.refresh_tokens`). On token replay, terminate the entire `familyId`.
+3. Introduce `tokenVersion` on `auth.users` validated in real time by `authenticate` middleware, allowing instantaneous invalidation of access tokens across all devices on password changes or administrative lockouts.
+4. Adopt Argon2id (OWASP recommended parameters) for password hashing with transparent backward compatibility.
+5. Provide dedicated endpoints for session inspection and remote revocation (`/auth/sessions`).
+6. Apply atomic database updates for failed login tracking to prevent race conditions during concurrent brute-force attacks.
+
+### Consequences
+
+- **Positive**: Zero risk of refresh token replay attacks going undetected; instantaneous access token revocation without waiting for 15-minute expiration; multi-schema isolation; OWASP-compliant password security.
+- **Negative**: Requires database query or Redis cache check during access token authentication to verify `tokenVersion`.
+
+---
+
 ## Process for Documenting Future Architectural Decisions
 
 When proposing an architectural change (e.g. adding a new top-level layer, integrating a new message broker, or changing database strategy):

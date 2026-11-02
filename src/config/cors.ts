@@ -6,7 +6,7 @@ export const corsOptions: CorsOptions = {
     if (!origin || env.CORS_ORIGIN === '*') {
       return callback(null, true);
     }
-    const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
+    const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -21,5 +21,7 @@ export const corsOptions: CorsOptions = {
     'X-Requested-With',
     'X-School-Id',
     'X-Request-Id',
+    'X-Organization-Id',
+    'X-Location-Id',
   ],
 };
