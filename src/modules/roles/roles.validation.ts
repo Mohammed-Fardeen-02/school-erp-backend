@@ -5,7 +5,7 @@ export const permissionGrantItemSchema = z
   .object({
     nodeId: z.string().uuid('Invalid node ID format').optional(),
     nodeCode: z.string().min(1, 'nodeCode cannot be empty').optional(),
-    isGranted: z.boolean({ required_error: 'isGranted must be a boolean' }),
+    isGranted: z.boolean({ required_error: 'isGranted must be a boolean or null' }).nullable(),
   })
   .refine(
     (item) => item.nodeId !== undefined || item.nodeCode !== undefined,

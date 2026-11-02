@@ -29,9 +29,9 @@ export class RolesService {
    */
   private async resolveAndValidateNodes(
     items: PermissionGrantItem[]
-  ): Promise<Array<{ nodeId: string; nodeCode: string; isGranted: boolean }>> {
+  ): Promise<Array<{ nodeId: string; nodeCode: string; isGranted: boolean | null }>> {
     const seenNodeIds = new Set<string>();
-    const resolved: Array<{ nodeId: string; nodeCode: string; isGranted: boolean }> = [];
+    const resolved: Array<{ nodeId: string; nodeCode: string; isGranted: boolean | null }> = [];
 
     for (const item of items) {
       let node: any;
@@ -79,7 +79,7 @@ export class RolesService {
   public async verifyDelegationCeiling(
     actorUserId: string,
     organizationId: string,
-    grants: Array<{ nodeCode: string; isGranted: boolean }>
+    grants: Array<{ nodeCode: string; isGranted: boolean | null }>
   ): Promise<void> {
     const actorEffectivePermissions = await effectivePermissionsService.getEffectivePermissions(
       actorUserId,

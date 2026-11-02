@@ -395,6 +395,58 @@ describe('Stage 3.4: Roles Domain Service & Security Controls', () => {
         message: expect.stringContaining('Delegation ceiling violation'),
       });
     });
+
+    it('should permit resetting an explicit permission (isGranted: null) without triggering delegation ceiling', async () => {
+      mockPrisma.role.findFirst.mockResolvedValue({
+        id: 'custom-role-1',
+        roleType: RoleType.CUSTOM,
+        organizationId: orgId,
+        permissions: [
+          {
+            nodeId: 'node-audit-export',
+            isGranted: false, // Currently explicitly denied
+          },
+        ],
+      });
+      mockPrisma.userRole.findFirst.mockResolvedValue(null);
+
+      mockPrisma.permissionNode.findUnique.mockResolvedValue({
+        id: 'node-audit-export',
+        nodeCode: 'settings.audit_logs.trail.export',
+        isActive: true,
+      });
+
+      // Caller does NOT possess export, but is resetting/clearing an override, not granting it!
+      vi.spyOn(effectivePermissionsService, 'getEffectivePermissions').mockResolvedValue(
+        new Set(['settings.audit_logs.trail.view'])
+      );
+
+      const updatePermissionsSpy = vi.spyOn(mockRepo, 'updateRolePermissions').mockResolvedValue(undefined as any);
+
+      await expect(
+        service.updateRolePermissions(
+          'custom-role-1',
+          orgId,
+          {
+            permissions: [
+              {
+                nodeCode: 'settings.audit_logs.trail.export',
+                isGranted: null, // Resetting override!
+              },
+            ],
+          },
+          auditContext
+        )
+      ).resolves.toBeUndefined();
+
+      expect(updatePermissionsSpy).toHaveBeenCalledWith(
+        'custom-role-1',
+        orgId,
+        [{ nodeId: 'node-audit-export', isGranted: null }],
+        [{ nodeId: 'node-audit-export', isGranted: false }],
+        auditContext
+      );
+    });
   });
 
   describe('6. Anti-Self-Modification Protection', () => {

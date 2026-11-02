@@ -440,29 +440,38 @@ export class RolesRepository {
   async updateRolePermissions(
     roleId: string,
     organizationId: string,
-    submittedGrants: Array<{ nodeId: string; isGranted: boolean }>,
+    submittedGrants: Array<{ nodeId: string; isGranted: boolean | null }>,
     previousGrants: Array<{ nodeId: string; isGranted: boolean }>,
     audit: AuditContext
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      // 1. Upsert each submitted capability grant
+      // 1. Process each submitted capability grant (null = delete override, boolean = upsert)
       for (const item of submittedGrants) {
-        await (tx as any).rolePermission.upsert({
-          where: {
-            roleId_nodeId: {
+        if (item.isGranted === null) {
+          await (tx as any).rolePermission.deleteMany({
+            where: {
               roleId,
               nodeId: item.nodeId,
             },
-          },
-          update: {
-            isGranted: item.isGranted,
-          },
-          create: {
-            roleId,
-            nodeId: item.nodeId,
-            isGranted: item.isGranted,
-          },
-        });
+          });
+        } else {
+          await (tx as any).rolePermission.upsert({
+            where: {
+              roleId_nodeId: {
+                roleId,
+                nodeId: item.nodeId,
+              },
+            },
+            update: {
+              isGranted: item.isGranted,
+            },
+            create: {
+              roleId,
+              nodeId: item.nodeId,
+              isGranted: item.isGranted,
+            },
+          });
+        }
       }
 
       // 2. Record transactional outbox event
