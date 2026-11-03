@@ -199,7 +199,9 @@ export class RolesService {
         roleName: data.roleName,
         description: data.description,
       },
-      resolvedGrants.map((g) => ({ nodeId: g.nodeId, isGranted: g.isGranted })),
+      resolvedGrants
+        .filter((g): g is typeof g & { isGranted: boolean } => g.isGranted !== null)
+        .map((g) => ({ nodeId: g.nodeId, isGranted: g.isGranted })),
       audit
     );
   }

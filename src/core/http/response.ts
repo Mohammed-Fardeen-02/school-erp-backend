@@ -52,6 +52,15 @@ export class ResponseHelper {
     return res.status(201).json(responsePayload);
   }
 
+  static paginated<T>(
+    res: Response,
+    data: T,
+    meta?: ApiResponseMeta,
+    message: string = 'Data retrieved successfully'
+  ): Response {
+    return this.ok(res, data, message, meta);
+  }
+
   static noContent(res: Response): Response {
     return res.status(204).send();
   }

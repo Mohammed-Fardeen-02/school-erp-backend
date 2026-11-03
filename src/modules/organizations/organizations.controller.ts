@@ -21,7 +21,7 @@ export class OrganizationsController {
 
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const isPlatformUser = req.user?.userType === 'PLATFORM';
       const callerOrgId = req.organizationId;
 
@@ -50,7 +50,7 @@ export class OrganizationsController {
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const isPlatformUser = req.user?.userType === 'PLATFORM';
       const callerOrgId = req.organizationId;
       const actorUserId = req.user?.id;
@@ -71,7 +71,7 @@ export class OrganizationsController {
 
   async updateStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const adminUserId = req.user!.id;
 
       const updated = await organizationsService.updateStatus(id, req.body, adminUserId);
@@ -83,7 +83,7 @@ export class OrganizationsController {
 
   async getModules(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const isPlatformUser = req.user?.userType === 'PLATFORM';
       const callerOrgId = req.organizationId;
 
@@ -96,7 +96,7 @@ export class OrganizationsController {
 
   async updateModules(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const adminUserId = req.user!.id;
 
       const updatedModules = await organizationsService.updateModules(id, req.body, adminUserId);

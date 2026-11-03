@@ -15,17 +15,11 @@ export class OrganizationsRepository {
     return (prisma as any).organization;
   }
 
-  private get locClient() {
-    return (prisma as any).location;
-  }
 
   private get modClient() {
     return (prisma as any).organizationModule;
   }
 
-  private get memClient() {
-    return (prisma as any).organizationMembership;
-  }
 
   async findAll(filters: OrganizationQueryFilters) {
     const { search, status, page = 1, limit = 20 } = filters;
@@ -172,7 +166,7 @@ export class OrganizationsRepository {
 
       // 4. Provision default module entitlements for chosen subscription plan
       const planName = data.subscriptionPlan || 'STANDARD';
-      const defaultModules = SUBSCRIPTION_PLAN_MODULES[planName] || SUBSCRIPTION_PLAN_MODULES.STANDARD;
+      const defaultModules = SUBSCRIPTION_PLAN_MODULES[planName] || SUBSCRIPTION_PLAN_MODULES.STANDARD || [];
 
       for (const moduleId of defaultModules) {
         await tx.organizationModule.create({

@@ -15,7 +15,7 @@ export const locationsRoutes: Router = Router();
 // All location endpoints execute within the verified tenant context
 locationsRoutes.use(
   authenticate,
-  requireTenantContext({ requireActiveTenant: true, requireActiveLocation: false })
+  requireTenantContext({ requireLocation: false })
 );
 
 locationsRoutes.get('/', locationsController.list);

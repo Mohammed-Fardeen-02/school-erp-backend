@@ -24,7 +24,7 @@ export class LocationsController {
 
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const organizationId = req.organizationId!;
 
       const location = await locationsService.getLocationById(id, organizationId);
@@ -53,7 +53,7 @@ export class LocationsController {
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const organizationId = req.organizationId!;
       const actorUserId = req.user!.id;
 
@@ -72,7 +72,7 @@ export class LocationsController {
 
   async setMainCampus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const organizationId = req.organizationId!;
       const actorUserId = req.user!.id;
 
@@ -90,7 +90,7 @@ export class LocationsController {
 
   async toggleStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const organizationId = req.organizationId!;
       const actorUserId = req.user!.id;
 

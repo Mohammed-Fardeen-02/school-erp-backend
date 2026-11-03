@@ -1,4 +1,3 @@
-import jwt from 'express';
 import jsonwebtoken from 'jsonwebtoken';
 import { env } from '../../config/env';
 import { AppError } from '../../core/errors/app-error';
