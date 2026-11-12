@@ -6,7 +6,8 @@ export class WorkspaceController {
   async myOrganizations(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user!.id;
-      const organizations = await workspaceService.getUserOrganizations(userId);
+      const isPlatformUser = req.user?.userType === 'PLATFORM';
+      const organizations = await workspaceService.getUserOrganizations(userId, isPlatformUser);
       ResponseHelper.ok(res, organizations, 'User organizations retrieved successfully');
     } catch (error) {
       next(error);

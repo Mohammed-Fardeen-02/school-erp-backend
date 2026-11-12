@@ -34,6 +34,15 @@ export function requireTenantContext(options?: TenantContextOptions) {
 
       // 3. Platform Super Admin Verification & Inspection Flow
       if (req.user.userType === 'PLATFORM') {
+        if (targetOrgId === 'platform-control') {
+          // Virtual global control center context
+          req.organizationId = 'platform-control';
+          if (req.context) {
+            req.context.organizationId = 'platform-control';
+          }
+          return next();
+        }
+
         const organization = await (prisma as any).organization.findUnique({
           where: { id: targetOrgId },
         });
