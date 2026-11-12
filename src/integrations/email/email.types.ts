@@ -35,3 +35,4 @@ export interface TenantSmtpSettings {
   replyTo?: string;
   isActive: boolean;
 }
+
