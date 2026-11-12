@@ -15,7 +15,7 @@ export type TenantStatus =
   | 'ARCHIVED';
 
 export interface CreateOrganizationDto {
-  code: string;
+  code?: string;
   legalName: string;
   displayName: string;
   organizationType?: OrganizationType;

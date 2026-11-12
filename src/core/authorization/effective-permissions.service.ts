@@ -192,10 +192,13 @@ export class EffectivePermissionsService {
     organizationId: string,
     locationId?: string | null
   ): Promise<Set<string>> {
-    const user = await (this.prisma as any).user.findUnique({
-      where: { id: userId },
-      select: { userType: true },
-    });
+    const user =
+      typeof (this.prisma as any).user?.findUnique === 'function'
+        ? await (this.prisma as any).user.findUnique({
+            where: { id: userId },
+            select: { userType: true },
+          })
+        : null;
 
     if (user?.userType === 'PLATFORM') {
       const { allNodeCodes } = await this.loadNodeHierarchy();

@@ -165,6 +165,39 @@ export class RolesService {
   }
 
   /**
+   * Generates a unique role code for an organization based on the role name.
+   */
+  async generateUniqueRoleCode(roleName: string, organizationId: string): Promise<string> {
+    let base = roleName
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    if (!base) {
+      base = 'CUSTOM_ROLE';
+    }
+    if (!base.startsWith('ROLE_')) {
+      base = `ROLE_${base}`;
+    }
+    base = base.slice(0, 35);
+
+    const existingBase = await this.repo.findCustomRoleByCode(base, organizationId);
+    if (!existingBase) {
+      return base;
+    }
+
+    for (let i = 2; i <= 99; i++) {
+      const candidate = `${base}_${i}`;
+      const existing = await this.repo.findCustomRoleByCode(candidate, organizationId);
+      if (!existing) {
+        return candidate;
+      }
+    }
+
+    return `${base}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+  }
+
+  /**
    * Creates a tenant custom role.
    */
   async createCustomRole(
@@ -172,14 +205,19 @@ export class RolesService {
     data: CreateRoleDto,
     audit: AuditContext
   ): Promise<any> {
-    // 1. Role code uniqueness check within active organization
-    const existing = await this.repo.findCustomRoleByCode(data.roleCode, organizationId);
-    if (existing) {
-      throw new AppError(
-        `Role code '${data.roleCode}' already exists in this organization`,
-        409,
-        ErrorCode.CONFLICT
-      );
+    // 1. Resolve and ensure unique role code
+    let roleCode = data.roleCode?.trim().toUpperCase();
+    if (!roleCode) {
+      roleCode = await this.generateUniqueRoleCode(data.roleName, organizationId);
+    } else {
+      const existing = await this.repo.findCustomRoleByCode(roleCode, organizationId);
+      if (existing) {
+        throw new AppError(
+          `Role code '${roleCode}' already exists in this organization`,
+          409,
+          ErrorCode.CONFLICT
+        );
+      }
     }
 
     // 2. Validate and resolve permission nodes if provided
@@ -195,7 +233,7 @@ export class RolesService {
     return this.repo.createCustomRole(
       organizationId,
       {
-        roleCode: data.roleCode,
+        roleCode,
         roleName: data.roleName,
         description: data.description,
       },
