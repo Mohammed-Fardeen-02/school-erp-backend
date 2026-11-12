@@ -105,13 +105,18 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     }
 
     // 6. Attach authenticated identity to request & context
+    const isPlatform = user.userType === 'PLATFORM';
+    const computedRoles = Array.from(
+      new Set([...(decoded.roles || []), ...(isPlatform ? ['SUPER_ADMIN'] : [])])
+    );
+
     const authUser: AuthenticatedUser = {
       id: user.id,
       email: user.email,
       userType: user.userType,
       tokenVersion: user.tokenVersion,
       sessionId: decoded.sessionId,
-      roles: decoded.roles || [],
+      roles: computedRoles,
       permissions: decoded.permissions || [],
       organizationId: decoded.organizationId || decoded.schoolId,
       locationId: decoded.locationId || decoded.branchId,
