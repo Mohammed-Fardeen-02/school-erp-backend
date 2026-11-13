@@ -64,3 +64,4 @@ settingsRoutes.post(
   validateRequest({ body: testRazorpaySchema }),
   settingsController.testRazorpay.bind(settingsController)
 );
+
