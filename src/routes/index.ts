@@ -7,6 +7,7 @@ import { workspaceRoutes } from '../modules/workspace/workspace.routes';
 import { rolesRoutes } from '../modules/roles/roles.routes';
 import { permissionsRoutes } from '../modules/permissions/permissions.routes';
 import { userRolesRoutes } from '../modules/user-roles/user-roles.routes';
+import { settingsRoutes } from '../modules/settings/settings.routes';
 
 const apiRouter = Router();
 
@@ -33,5 +34,8 @@ apiRouter.use('/permissions', permissionsRoutes);
 
 // User-Role Assignments & Historical Lifecycle Management
 apiRouter.use('/user-roles', userRolesRoutes);
+
+// Institutional Settings & Integrations
+apiRouter.use('/settings', settingsRoutes);
 
 export default apiRouter;
