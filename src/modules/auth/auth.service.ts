@@ -114,11 +114,12 @@ export class AuthService {
       expiresAt: refreshExpiresAt,
     });
 
-    // 6. Generate Short-Lived Access Token (carrying tokenVersion)
+    // 6. Generate Short-Lived Access Token (carrying tokenVersion and roles)
     const accessPayload: JwtAccessPayload = {
       sub: user.id,
       email: user.email,
       userType: user.userType,
+      roles: user.userType === 'PLATFORM' ? ['SUPER_ADMIN'] : [],
       tokenVersion: user.tokenVersion,
       sessionId: session.id,
     };
@@ -232,11 +233,12 @@ export class AuthService {
       newExpiresAt
     );
 
-    // Issue new access token carrying current tokenVersion
+    // Issue new access token carrying current tokenVersion and roles
     const accessPayload: JwtAccessPayload = {
       sub: user.id,
       email: user.email,
       userType: user.userType,
+      roles: user.userType === 'PLATFORM' ? ['SUPER_ADMIN'] : [],
       tokenVersion: user.tokenVersion,
       sessionId: tokenRecord.session.id,
     };

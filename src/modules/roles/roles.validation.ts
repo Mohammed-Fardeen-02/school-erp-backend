@@ -15,12 +15,13 @@ export const permissionGrantItemSchema = z
 export const createRoleSchema = z.object({
   roleCode: z
     .string()
-    .min(2, 'Role code must be at least 2 characters')
     .max(50, 'Role code cannot exceed 50 characters')
     .regex(
       /^[A-Z0-9_]+$/,
       'Role code must contain only uppercase alphanumeric characters and underscores'
-    ),
+    )
+    .optional()
+    .or(z.literal('')),
   roleName: z
     .string()
     .min(2, 'Role name must be at least 2 characters')

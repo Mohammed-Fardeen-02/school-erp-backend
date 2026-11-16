@@ -18,6 +18,7 @@ export function createApp(): Application {
 
   // Cross-Origin Resource Sharing
   app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
 
   // Request Body Parsers
   app.use(express.json({ limit: '10mb' }));

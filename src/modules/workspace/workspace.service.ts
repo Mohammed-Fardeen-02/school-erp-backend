@@ -13,7 +13,10 @@ import { prisma } from '../../core/database/prisma-client';
 import { sanitizeAuditPayload } from '../../core/security/audit-sanitizer';
 
 export class WorkspaceService {
-  async getUserOrganizations(userId: string): Promise<UserOrganizationSummary[]> {
+  async getUserOrganizations(userId: string, isPlatformUser: boolean = false): Promise<UserOrganizationSummary[]> {
+    if (isPlatformUser) {
+      return workspaceRepository.getAllActiveOrganizations();
+    }
     return workspaceRepository.getUserOrganizations(userId);
   }
 

@@ -4,9 +4,10 @@ import { ModuleId } from '../../shared/constants/modules';
 export const createOrganizationSchema = z.object({
   code: z
     .string()
-    .min(3, 'Organization code must be at least 3 characters')
     .max(50, 'Organization code must not exceed 50 characters')
-    .regex(/^[A-Z0-9_-]+$/, 'Code must contain only uppercase alphanumeric characters, dashes, and underscores'),
+    .regex(/^[A-Z0-9_-]+$/, 'Code must contain only uppercase alphanumeric characters, dashes, and underscores')
+    .optional()
+    .or(z.literal('')),
   legalName: z.string().min(2, 'Legal name is required').max(200),
   displayName: z.string().min(2, 'Display name is required').max(150),
   organizationType: z

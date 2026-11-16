@@ -34,18 +34,54 @@ export class OrganizationsService {
     return org;
   }
 
-  async createOrganization(data: CreateOrganizationDto, adminUserId: string) {
-    // 1. Check uniqueness of organization code
-    const existingCode = await organizationsRepository.findByCode(data.code);
-    if (existingCode) {
-      throw AppError.conflict(
-        `Organization code '${data.code}' is already registered. Please use a unique code.`,
-        ErrorCode.CONFLICT
-      );
+  /**
+   * Generates a unique institutional code based on display name or legal name.
+   */
+  async generateUniqueOrganizationCode(name: string): Promise<string> {
+    const cleanName = (name || 'ORG').trim();
+    const words = cleanName.split(/\s+/).filter(Boolean);
+    let base = words.map((w) => w[0]).join('').toUpperCase();
+    if (base.length < 2) {
+      base = cleanName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase();
+    }
+    if (base.length < 2) {
+      base = 'ORG';
     }
 
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const candidate = `${base}-${randomSuffix}`;
+      const existing = await organizationsRepository.findByCode(candidate);
+      if (!existing) {
+        return candidate;
+      }
+    }
+
+    return `${base}-${Date.now().toString(36).toUpperCase()}`;
+  }
+
+  async createOrganization(data: CreateOrganizationDto, adminUserId: string) {
+    // 1. Resolve and ensure unique organization code
+    let orgCode = data.code?.trim().toUpperCase();
+    if (!orgCode) {
+      orgCode = await this.generateUniqueOrganizationCode(data.displayName || data.legalName);
+    } else {
+      const existingCode = await organizationsRepository.findByCode(orgCode);
+      if (existingCode) {
+        throw AppError.conflict(
+          `Organization code '${orgCode}' is already registered. Please use a unique code.`,
+          ErrorCode.CONFLICT
+        );
+      }
+    }
+
+    const payload: CreateOrganizationDto = {
+      ...data,
+      code: orgCode,
+    };
+
     // 2. Execute atomic provisioning transaction
-    const result = await organizationsRepository.createWithProvisioning(data);
+    const result = await organizationsRepository.createWithProvisioning(payload);
 
     // 3. Create Audit Log entry
     await (prisma as any).auditLog.create({

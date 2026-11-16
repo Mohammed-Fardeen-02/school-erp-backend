@@ -8,6 +8,12 @@ export function authorizeRoles(...allowedRoles: string[]) {
       return next(new AppError('Authentication required', 401, ErrorCode.UNAUTHENTICATED));
     }
 
+    // Platform Super Admin bypasses role checks or automatically satisfies SUPER_ADMIN
+    const isSuperAdmin = req.user.userType === 'PLATFORM' || req.user.roles.includes('SUPER_ADMIN');
+    if (isSuperAdmin) {
+      return next();
+    }
+
     const hasAllowedRole = req.user.roles.some(role => allowedRoles.includes(role));
 
     if (!hasAllowedRole) {
@@ -31,7 +37,7 @@ export function authorizePermissions(...requiredPermissions: string[]) {
     }
 
     // Super Admin role bypasses permission checks
-    if (req.user.roles.includes('SUPER_ADMIN')) {
+    if (req.user.userType === 'PLATFORM' || req.user.roles.includes('SUPER_ADMIN')) {
       return next();
     }
 
@@ -60,7 +66,7 @@ export function requireTenantScope() {
     }
 
     // Super Admins operate globally across tenants
-    if (req.user.roles.includes('SUPER_ADMIN')) {
+    if (req.user.userType === 'PLATFORM' || req.user.roles.includes('SUPER_ADMIN')) {
       return next();
     }
 

@@ -18,10 +18,17 @@ export const corsOptions: CorsOptions = {
   allowedHeaders: [
     'Content-Type',
     'Authorization',
+    'Accept',
+    'Origin',
     'X-Requested-With',
     'X-School-Id',
     'X-Request-Id',
     'X-Organization-Id',
     'X-Location-Id',
+    'X-Platform-Override',
+    'X-Override-Reason',
+    'X-Platform-Module-Bypass',
+    'X-Correlation-Id',
   ],
+  exposedHeaders: ['X-Request-Id', 'X-Total-Count', 'Content-Range'],
 };

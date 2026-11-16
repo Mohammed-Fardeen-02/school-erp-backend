@@ -82,6 +82,55 @@ export class WorkspaceRepository {
   }
 
   /**
+   * Retrieves all active organizations for platform super admin users.
+   */
+  async getAllActiveOrganizations(): Promise<UserOrganizationSummary[]> {
+    const orgs = await (prisma as any).organization.findMany({
+      where: {
+        status: {
+          not: 'ARCHIVED',
+        },
+      },
+      select: {
+        id: true,
+        code: true,
+        displayName: true,
+        legalName: true,
+        organizationType: true,
+        status: true,
+        logoUrl: true,
+        locations: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            locationType: true,
+            isMainCampus: true,
+            isActive: true,
+          },
+          orderBy: [{ isMainCampus: 'desc' }, { name: 'asc' }],
+        },
+      },
+      orderBy: [{ createdAt: 'asc' }],
+    });
+
+    return orgs.map((org: any, idx: number) => ({
+      id: org.id,
+      code: org.code,
+      displayName: org.displayName,
+      legalName: org.legalName,
+      organizationType: org.organizationType,
+      status: org.status,
+      logoUrl: org.logoUrl,
+      isPrimary: idx === 0,
+      accessLevel: 'OWNER',
+      membershipType: 'STAFF',
+      campuses: org.locations,
+    }));
+  }
+
+  /**
    * Finds a specific user membership in an organization.
    */
   async findMembership(userId: string, organizationId: string) {

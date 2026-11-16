@@ -21,7 +21,7 @@ export interface PermissionGrantItem {
 }
 
 export interface CreateRoleDto {
-  roleCode: string;
+  roleCode?: string;
   roleName: string;
   description?: string;
   permissions?: PermissionGrantItem[];
