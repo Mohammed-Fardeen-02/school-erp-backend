@@ -36,6 +36,7 @@ export interface BranchDto {
 }
 
 export interface CreateBranchDto {
+  organizationId?: string;
   code?: string;
   name: string;
   locationType?: BranchType;
@@ -70,6 +71,7 @@ export interface UpdateBranchDto {
 }
 
 export interface BranchQueryFilters {
+  organizationId?: string;
   isActive?: boolean;
   locationType?: BranchType;
   search?: string;

@@ -9,7 +9,8 @@ export class BranchesRepository {
   }
 
   async findByOrganization(organizationId: string, filters?: BranchQueryFilters) {
-    const where: any = organizationId === 'platform-control' ? {} : { organizationId };
+    const targetOrg = filters?.organizationId || organizationId;
+    const where: any = targetOrg === 'platform-control' ? {} : { organizationId: targetOrg };
 
     if (filters?.isActive !== undefined) {
       where.isActive = filters.isActive;

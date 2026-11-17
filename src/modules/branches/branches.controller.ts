@@ -1,12 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import { branchesService } from './branches.service';
 import { ResponseHelper } from '../../core/http/response';
+import { AppError } from '../../core/errors/app-error';
+import { ErrorCode } from '../../core/errors/error-codes';
 
 export class BranchesController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const organizationId = req.organizationId || (req.query.organizationId as string) || 'platform-control';
+      const targetOrg = (req.query.organizationId as string) || req.organizationId;
+      const organizationId = targetOrg && targetOrg !== 'ALL' ? targetOrg : 'platform-control';
       const filters = {
+        organizationId: targetOrg && targetOrg !== 'ALL' ? targetOrg : undefined,
         isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined,
         locationType: req.query.locationType as any,
         search: req.query.search as string,
@@ -35,10 +39,17 @@ export class BranchesController {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const organizationId = req.organizationId!;
+      const targetOrg = req.body.organizationId || req.organizationId;
+      if (!targetOrg || targetOrg === 'platform-control') {
+        throw new AppError(
+          'Target organization must be selected to create a branch.',
+          400,
+          ErrorCode.TENANT_CONTEXT_MISSING
+        );
+      }
       const actorUserId = req.user!.id;
 
-      const branch = await branchesService.createBranch(organizationId, req.body, actorUserId);
+      const branch = await branchesService.createBranch(targetOrg, req.body, actorUserId);
       ResponseHelper.created(res, branch, 'Branch created successfully');
     } catch (error) {
       next(error);

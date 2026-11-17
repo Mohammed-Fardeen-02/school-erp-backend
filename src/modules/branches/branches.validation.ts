@@ -10,6 +10,7 @@ export const branchTypeEnum = z.enum([
 ]);
 
 export const createBranchSchema = z.object({
+  organizationId: z.string().uuid('Invalid organization ID').optional(),
   code: z
     .string()
     .min(2, 'Branch code must be at least 2 characters')
@@ -50,6 +51,7 @@ export const updateBranchSchema = z.object({
 });
 
 export const branchQuerySchema = z.object({
+  organizationId: z.string().optional(),
   search: z.string().optional(),
   isActive: z.enum(['true', 'false']).transform(v => v === 'true').optional(),
   locationType: branchTypeEnum.optional(),
