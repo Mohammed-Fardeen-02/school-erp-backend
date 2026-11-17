@@ -47,6 +47,10 @@ export class OrganizationsRepository {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
+          locations: {
+            where: { isActive: true },
+            orderBy: [{ isMainCampus: 'desc' }, { name: 'asc' }],
+          },
           _count: {
             select: {
               locations: true,
@@ -65,7 +69,67 @@ export class OrganizationsRepository {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  async findAllForUser(userId: string, filters: OrganizationQueryFilters) {
+    const { search, status, page = 1, limit = 20 } = filters;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      memberships: {
+        some: {
+          userId,
+          status: 'ACTIVE',
+        },
+      },
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { code: { contains: search, mode: 'insensitive' } },
+        { legalName: { contains: search, mode: 'insensitive' } },
+        { displayName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.orgClient.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          locations: {
+            where: { isActive: true },
+            orderBy: [{ isMainCampus: 'desc' }, { name: 'asc' }],
+          },
+          _count: {
+            select: {
+              locations: true,
+              memberships: true,
+              modules: true,
+            },
+          },
+        },
+      }),
+      this.orgClient.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
       },
     };
   }
@@ -101,7 +165,7 @@ export class OrganizationsRepository {
    * Atomically provisions an organization, its initial main campus, module subscriptions,
    * and optional initial tenant OWNER administrator in a single database transaction.
    */
-  async createWithProvisioning(data: CreateOrganizationDto) {
+  async createWithProvisioning(data: CreateOrganizationDto, creatorUserId?: string) {
     return prisma.$transaction(async (tx: any) => {
       // 1. Calculate status and trial date
       const isTrial = !!data.trialDays;
@@ -110,40 +174,44 @@ export class OrganizationsRepository {
         ? new Date(Date.now() + data.trialDays * 24 * 60 * 60 * 1000)
         : null;
 
+      const orgCountry = (data.country?.trim() || 'IN').slice(0, 100);
+
       // 2. Create Organization record
       const organization = await tx.organization.create({
         data: {
           code: data.code,
-          legalName: data.legalName,
-          displayName: data.displayName,
+          legalName: data.legalName.trim(),
+          displayName: data.displayName.trim(),
           organizationType: data.organizationType || 'K12_SCHOOL_CHAIN',
           status: initialStatus,
-          email: data.email,
-          phone: data.phone,
-          website: data.website || null,
-          taxId: data.taxId || null,
-          registrationNo: data.registrationNo || null,
-          addressLine1: data.addressLine1 || null,
-          addressLine2: data.addressLine2 || null,
-          city: data.city || null,
-          state: data.state || null,
-          country: data.country || 'IN',
-          postalCode: data.postalCode || null,
-          timezone: data.timezone || 'Asia/Kolkata',
-          currency: data.currency || 'INR',
+          email: data.email.trim().toLowerCase(),
+          phone: data.phone.trim(),
+          website: data.website?.trim() || null,
+          taxId: data.taxId?.trim() || null,
+          registrationNo: data.registrationNo?.trim() || null,
+          addressLine1: data.addressLine1?.trim() || null,
+          addressLine2: data.addressLine2?.trim() || null,
+          city: data.city?.trim() || null,
+          state: data.state?.trim() || null,
+          country: orgCountry,
+          postalCode: data.postalCode?.trim() || null,
+          timezone: data.timezone?.trim() || 'Asia/Kolkata',
+          currency: data.currency?.trim() || 'INR',
           subscriptionPlan: data.subscriptionPlan || 'STANDARD',
           maxLocations: data.maxLocations || 5,
           maxUsers: data.maxUsers || 500,
           maxStudents: data.maxStudents || 2000,
           trialEndsAt,
-          logoUrl: data.logoUrl || null,
-          brandColor: data.brandColor || null,
+          logoUrl: data.logoUrl?.trim() || null,
+          brandColor: data.brandColor?.trim() || null,
         },
       });
 
       // 3. Atomically create the mandatory initial Main Campus
-      const mainCampusCode = data.initialMainCampusCode || `${data.code}-MAIN`;
-      const mainCampusName = data.initialMainCampusName || `${data.displayName} - Main Campus`;
+      const rawCampusCode = (data.initialMainCampusCode?.trim() || `${data.code}-MAIN`);
+      const mainCampusCode = rawCampusCode.slice(0, 50);
+      const rawCampusName = (data.initialMainCampusName?.trim() || `${data.displayName.trim()} - Main Campus`);
+      const mainCampusName = rawCampusName.slice(0, 150);
 
       const mainCampus = await tx.location.create({
         data: {
@@ -153,14 +221,14 @@ export class OrganizationsRepository {
           locationType: 'MAIN_CAMPUS',
           isMainCampus: true,
           isActive: true,
-          email: data.email,
-          phone: data.phone,
-          addressLine1: data.addressLine1 || null,
-          addressLine2: data.addressLine2 || null,
-          city: data.city || null,
-          state: data.state || null,
-          country: data.country || 'IN',
-          postalCode: data.postalCode || null,
+          email: data.email.trim().toLowerCase(),
+          phone: data.phone.trim(),
+          addressLine1: data.addressLine1?.trim() || null,
+          addressLine2: data.addressLine2?.trim() || null,
+          city: data.city?.trim() || null,
+          state: data.state?.trim() || null,
+          country: orgCountry,
+          postalCode: data.postalCode?.trim() || null,
         },
       });
 
@@ -180,7 +248,7 @@ export class OrganizationsRepository {
 
       // 5. Optionally provision initial tenant OWNER user
       let ownerCredentials: { email: string; oneTimePassword?: string } | null = null;
-      if (data.ownerEmail) {
+      if (data.ownerEmail && data.ownerEmail.trim()) {
         const ownerEmail = data.ownerEmail.trim().toLowerCase();
         let ownerUser = await tx.user.findUnique({
           where: { email: ownerEmail },
@@ -194,8 +262,8 @@ export class OrganizationsRepository {
             data: {
               email: ownerEmail,
               passwordHash,
-              firstName: data.ownerFirstName || 'Tenant',
-              lastName: data.ownerLastName || 'Administrator',
+              firstName: data.ownerFirstName?.trim() || 'Tenant',
+              lastName: data.ownerLastName?.trim() || 'Administrator',
               userType: 'TENANT',
               isActive: true,
               mustChangePassword: true,
@@ -218,6 +286,28 @@ export class OrganizationsRepository {
             isPrimary: true,
           },
         });
+      } else if (creatorUserId) {
+        // Automatically grant creator user OWNER access to the new organization
+        const existingMembership = await tx.organizationMembership.findFirst({
+          where: {
+            userId: creatorUserId,
+            organizationId: organization.id,
+          },
+        });
+
+        if (!existingMembership) {
+          await tx.organizationMembership.create({
+            data: {
+              userId: creatorUserId,
+              organizationId: organization.id,
+              accessLevel: 'OWNER',
+              membershipType: 'STAFF',
+              status: 'ACTIVE',
+              jobTitle: 'Institutional Founder / Director',
+              isPrimary: true,
+            },
+          });
+        }
       }
 
       return {

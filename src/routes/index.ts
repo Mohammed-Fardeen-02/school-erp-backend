@@ -8,6 +8,7 @@ import { rolesRoutes } from '../modules/roles/roles.routes';
 import { permissionsRoutes } from '../modules/permissions/permissions.routes';
 import { userRolesRoutes } from '../modules/user-roles/user-roles.routes';
 import { settingsRoutes } from '../modules/settings/settings.routes';
+import { branchesRoutes } from '../modules/branches/branches.routes';
 
 const apiRouter = Router();
 
@@ -37,5 +38,9 @@ apiRouter.use('/user-roles', userRolesRoutes);
 
 // Institutional Settings & Integrations
 apiRouter.use('/settings', settingsRoutes);
+
+// Academics & Institutional Branches Master
+apiRouter.use('/branches', branchesRoutes);
+apiRouter.use('/academics/branches', branchesRoutes);
 
 export default apiRouter;

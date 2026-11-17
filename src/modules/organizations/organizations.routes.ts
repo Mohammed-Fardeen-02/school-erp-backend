@@ -22,7 +22,6 @@ export const organizationsRoutes: Router = Router();
 organizationsRoutes.get(
   '/',
   authenticate,
-  authorizeRoles('SUPER_ADMIN'),
   validateRequest({ query: organizationQuerySchema }),
   organizationsController.list
 );
@@ -30,7 +29,6 @@ organizationsRoutes.get(
 organizationsRoutes.post(
   '/',
   authenticate,
-  authorizeRoles('SUPER_ADMIN'),
   validateRequest({ body: createOrganizationSchema }),
   organizationsController.create
 );

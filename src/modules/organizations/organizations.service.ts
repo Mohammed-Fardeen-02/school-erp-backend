@@ -13,8 +13,15 @@ import { prisma } from '../../core/database/prisma-client';
 import { sanitizeAuditPayload } from '../../core/security/audit-sanitizer';
 
 export class OrganizationsService {
-  async getOrganizations(filters: OrganizationQueryFilters) {
-    return organizationsRepository.findAll(filters);
+  async getOrganizations(
+    filters: OrganizationQueryFilters,
+    isPlatformUser: boolean = true,
+    callerUserId?: string
+  ) {
+    if (isPlatformUser || !callerUserId) {
+      return organizationsRepository.findAll(filters);
+    }
+    return organizationsRepository.findAllForUser(callerUserId, filters);
   }
 
   async getOrganizationById(id: string, callerOrgId?: string, isPlatformUser: boolean = false) {
@@ -81,7 +88,7 @@ export class OrganizationsService {
     };
 
     // 2. Execute atomic provisioning transaction
-    const result = await organizationsRepository.createWithProvisioning(payload);
+    const result = await organizationsRepository.createWithProvisioning(payload, adminUserId);
 
     // 3. Create Audit Log entry
     await (prisma as any).auditLog.create({

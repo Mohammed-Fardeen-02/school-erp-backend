@@ -12,7 +12,7 @@ export class LocationsRepository {
    * Dual-key query retrieving all campuses strictly belonging to an organization.
    */
   async findByOrganization(organizationId: string, filters?: LocationQueryFilters) {
-    const where: any = { organizationId };
+    const where: any = organizationId === 'platform-control' ? {} : { organizationId };
 
     if (filters?.isActive !== undefined) {
       where.isActive = filters.isActive;
