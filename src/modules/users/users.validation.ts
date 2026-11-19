@@ -71,3 +71,4 @@ export const userQuerySchema = z.object({
     .optional()
     .transform((val) => (val ? Math.min(100, Math.max(1, parseInt(val, 10))) : 20)),
 });
+

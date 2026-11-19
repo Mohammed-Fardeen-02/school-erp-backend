@@ -42,3 +42,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS organization_invitations_token_hash_key ON org
 CREATE INDEX IF NOT EXISTS organization_invitations_organization_id_email_idx ON organization.organization_invitations(organization_id, email);
 CREATE INDEX IF NOT EXISTS organization_invitations_token_hash_idx ON organization.organization_invitations(token_hash);
 CREATE INDEX IF NOT EXISTS organization_invitations_status_idx ON organization.organization_invitations(status);
+

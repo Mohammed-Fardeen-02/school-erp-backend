@@ -76,3 +76,10 @@ organizationsRoutes.get(
   organizationsController.getModules
 );
 
+organizationsRoutes.get(
+  '/:id/activity',
+  authenticate,
+  requireTenantContext(),
+  organizationsController.getActivity
+);
+

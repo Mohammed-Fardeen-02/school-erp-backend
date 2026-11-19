@@ -108,6 +108,19 @@ export class OrganizationsController {
       next(error);
     }
   }
+
+  async getActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const isPlatformUser = req.user?.userType === 'PLATFORM';
+      const callerOrgId = req.organizationId;
+
+      const activity = await organizationsService.getActivity(id, callerOrgId, isPlatformUser);
+      ResponseHelper.ok(res, activity, 'Organization activity retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const organizationsController = new OrganizationsController();

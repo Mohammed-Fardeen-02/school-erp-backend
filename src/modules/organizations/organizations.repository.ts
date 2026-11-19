@@ -346,10 +346,57 @@ export class OrganizationsRepository {
         }
       }
 
+      // If suspending an organization, invalidate all active user sessions and bump tokenVersion
+      if (status === 'SUSPENDED' || status === 'ARCHIVED') {
+        const memberships = await tx.organizationMembership.findMany({
+          where: { organizationId: id, status: 'ACTIVE' },
+          select: { userId: true },
+        });
+
+        const userIds = memberships.map((m: any) => m.userId);
+
+        if (userIds.length > 0) {
+          await tx.session.updateMany({
+            where: {
+              userId: { in: userIds },
+              isRevoked: false,
+            },
+            data: {
+              isRevoked: true,
+            },
+          });
+
+          await tx.user.updateMany({
+            where: { id: { in: userIds } },
+            data: {
+              tokenVersion: { increment: 1 },
+            },
+          });
+        }
+      }
+
       return tx.organization.update({
         where: { id },
         data: { status },
       });
+    });
+  }
+
+  async getActivity(organizationId: string, limit = 50) {
+    return (prisma as any).auditLog.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
     });
   }
 

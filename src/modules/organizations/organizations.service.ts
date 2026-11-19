@@ -226,6 +226,22 @@ export class OrganizationsService {
 
     return updatedModules;
   }
+
+  async getActivity(id: string, callerOrgId?: string, isPlatformUser: boolean = false) {
+    if (!isPlatformUser && callerOrgId && callerOrgId !== id) {
+      throw AppError.forbidden(
+        'Cross-tenant access forbidden',
+        ErrorCode.TENANT_ACCESS_DENIED
+      );
+    }
+
+    const existing = await organizationsRepository.findById(id);
+    if (!existing) {
+      throw AppError.notFound('Organization not found', ErrorCode.TENANT_NOT_FOUND);
+    }
+
+    return organizationsRepository.getActivity(id);
+  }
 }
 
 export const organizationsService = new OrganizationsService();

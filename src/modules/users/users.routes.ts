@@ -87,3 +87,4 @@ usersRoutes.patch(
   requirePermission('settings.user_assignments.allocations.revoke'),
   usersController.toggleStatus
 );
+
