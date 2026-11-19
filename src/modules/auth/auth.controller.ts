@@ -118,12 +118,29 @@ export class AuthController {
   }
 
   /**
-   * Lists active device sessions for current user
+   * Lists active device sessions.
+   * If organization context is attached, returns organization-wide active sessions;
+   * otherwise returns the caller's active sessions.
    */
   async getSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
         throw new AppError('Not authenticated', 401, ErrorCode.UNAUTHENTICATED);
+      }
+
+      const orgId = req.organizationId || (req.headers['x-organization-id'] as string);
+
+      if (orgId && (req.user.userType === 'PLATFORM' || orgId !== 'platform-control')) {
+        const sessions = await authService.getOrganizationSessions({
+          organizationId: orgId,
+          currentSessionId: req.user.sessionId,
+          search: req.query.search as string,
+          userId: req.query.userId as string,
+          limit: req.query.limit ? Number(req.query.limit) : undefined,
+          offset: req.query.offset ? Number(req.query.offset) : undefined,
+        });
+        ResponseHelper.ok(res, sessions, 'Active sessions retrieved successfully');
+        return;
       }
 
       const sessions = await authService.getUserSessions(req.user.id, req.user.sessionId);
@@ -134,7 +151,36 @@ export class AuthController {
   }
 
   /**
-   * Revokes a specific device session
+   * Explicit organization session discovery endpoint for tenant administrators.
+   */
+  async getOrganizationSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new AppError('Not authenticated', 401, ErrorCode.UNAUTHENTICATED);
+      }
+
+      const orgId = req.organizationId || (req.headers['x-organization-id'] as string);
+      if (!orgId) {
+        throw new AppError('Organization context required', 400, ErrorCode.TENANT_CONTEXT_MISSING);
+      }
+
+      const sessions = await authService.getOrganizationSessions({
+        organizationId: orgId,
+        currentSessionId: req.user.sessionId,
+        search: req.query.search as string,
+        userId: req.query.userId as string,
+        limit: req.query.limit ? Number(req.query.limit) : undefined,
+        offset: req.query.offset ? Number(req.query.offset) : undefined,
+      });
+
+      ResponseHelper.ok(res, sessions, 'Active organization sessions retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Revokes a specific device session (self-revocation or administrative revocation).
    */
   async revokeSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -147,8 +193,107 @@ export class AuthController {
         throw new AppError('Session ID is required', 400, ErrorCode.BAD_REQUEST);
       }
 
-      await authService.revokeSession(sessionId, req.user.id);
+      const orgId = req.organizationId || (req.headers['x-organization-id'] as string);
+
+      if (orgId) {
+        await authService.adminRevokeSession({
+          sessionId,
+          organizationId: orgId,
+          actorUserId: req.user.id,
+          isPlatformOperator: req.user.userType === 'PLATFORM',
+        });
+      } else {
+        await authService.revokeSession(sessionId, req.user.id);
+      }
+
       ResponseHelper.ok(res, null, 'Session revoked successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Admin-initiated revocation of all sessions for a specific user.
+   */
+  async adminRevokeUserSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new AppError('Not authenticated', 401, ErrorCode.UNAUTHENTICATED);
+      }
+
+      const { userId } = req.params;
+      if (!userId) {
+        throw new AppError('User ID is required', 400, ErrorCode.BAD_REQUEST);
+      }
+
+      const orgId = req.organizationId || (req.headers['x-organization-id'] as string);
+      if (!orgId) {
+        throw new AppError('Organization context required', 400, ErrorCode.TENANT_CONTEXT_MISSING);
+      }
+
+      const result = await authService.adminRevokeUserSessions({
+        targetUserId: userId,
+        organizationId: orgId,
+        actorUserId: req.user.id,
+        isPlatformOperator: req.user.userType === 'PLATFORM',
+      });
+
+      ResponseHelper.ok(res, result, 'User sessions revoked successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Retrieves security policies for the active organization.
+   */
+  async getSecurityPolicies(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const orgId = req.organizationId || (req.headers['x-organization-id'] as string) || 'default';
+      const policies = await authService.getSecurityPolicies(orgId);
+      ResponseHelper.ok(res, policies, 'Security policies retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Updates security policies for the active organization.
+   */
+  async updateSecurityPolicies(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new AppError('Not authenticated', 401, ErrorCode.UNAUTHENTICATED);
+      }
+
+      const orgId = req.organizationId || (req.headers['x-organization-id'] as string) || 'default';
+      const updated = await authService.updateSecurityPolicies(orgId, req.body, req.user.id);
+      ResponseHelper.ok(res, updated, 'Security policies updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Retrieves forensic authentication activity for the organization.
+   */
+  async getAuthenticationActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const orgId = req.organizationId || (req.headers['x-organization-id'] as string) || 'default';
+      const page = req.query.page ? Number(req.query.page) : 1;
+      const limit = req.query.limit ? Number(req.query.limit) : 10;
+      const search = req.query.search as string;
+      const action = req.query.action as string;
+
+      const activity = await authService.getAuthenticationActivity({
+        organizationId: orgId,
+        search,
+        action,
+        page,
+        limit,
+      });
+
+      ResponseHelper.ok(res, activity, 'Authentication activity retrieved successfully');
     } catch (error) {
       next(error);
     }

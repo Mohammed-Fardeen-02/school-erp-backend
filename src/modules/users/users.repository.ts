@@ -160,6 +160,18 @@ export class UsersRepository {
   }
 
   /**
+   * Atomically increments tokenVersion to invalidate all active JWTs for a user without changing password.
+   */
+  async incrementTokenVersion(userId: string): Promise<User> {
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        tokenVersion: { increment: 1 },
+      },
+    });
+  }
+
+  /**
    * Update arbitrary user profile fields
    */
   async update(userId: string, data: Prisma.UserUpdateInput): Promise<User> {

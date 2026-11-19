@@ -212,6 +212,140 @@ export class SessionsRepository {
       where: { id: sessionId },
     });
   }
+
+  /**
+   * Find a specific session by ID including user and organization memberships
+   */
+  async findSessionWithUserById(sessionId: string) {
+    return prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        user: {
+          include: {
+            memberships: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Lists active, non-revoked sessions for users belonging to a specific organization.
+   */
+  async findOrganizationActiveSessions(
+    organizationId: string,
+    options?: {
+      search?: string;
+      userId?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ) {
+    const whereClause: any = {
+      isRevoked: false,
+      expiresAt: { gt: new Date() },
+    };
+
+    if (organizationId !== 'platform-control') {
+      whereClause.user = {
+        memberships: {
+          some: {
+            organizationId,
+            status: 'ACTIVE',
+          },
+        },
+      };
+    }
+
+    if (options?.userId) {
+      whereClause.userId = options.userId;
+    }
+
+    if (options?.search && options.search.trim()) {
+      const q = options.search.trim();
+      whereClause.AND = [
+        {
+          OR: [
+            { deviceInfo: { contains: q, mode: 'insensitive' } },
+            { ipAddress: { contains: q, mode: 'insensitive' } },
+            { userAgent: { contains: q, mode: 'insensitive' } },
+            { user: { email: { contains: q, mode: 'insensitive' } } },
+            { user: { firstName: { contains: q, mode: 'insensitive' } } },
+            { user: { lastName: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+      ];
+    }
+
+    return prisma.session.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            userType: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: options?.limit ?? 50,
+      skip: options?.offset ?? 0,
+    });
+  }
+
+  /**
+   * Counts active sessions for an organization.
+   */
+  async countOrganizationActiveSessions(
+    organizationId: string,
+    options?: {
+      search?: string;
+      userId?: string;
+    }
+  ): Promise<number> {
+    const whereClause: any = {
+      isRevoked: false,
+      expiresAt: { gt: new Date() },
+    };
+
+    if (organizationId !== 'platform-control') {
+      whereClause.user = {
+        memberships: {
+          some: {
+            organizationId,
+            status: 'ACTIVE',
+          },
+        },
+      };
+    }
+
+    if (options?.userId) {
+      whereClause.userId = options.userId;
+    }
+
+    if (options?.search && options.search.trim()) {
+      const q = options.search.trim();
+      whereClause.AND = [
+        {
+          OR: [
+            { deviceInfo: { contains: q, mode: 'insensitive' } },
+            { ipAddress: { contains: q, mode: 'insensitive' } },
+            { userAgent: { contains: q, mode: 'insensitive' } },
+            { user: { email: { contains: q, mode: 'insensitive' } } },
+            { user: { firstName: { contains: q, mode: 'insensitive' } } },
+            { user: { lastName: { contains: q, mode: 'insensitive' } } },
+          ],
+        },
+      ];
+    }
+
+    return prisma.session.count({
+      where: whereClause,
+    });
+  }
 }
 
 export const sessionsRepository = new SessionsRepository();

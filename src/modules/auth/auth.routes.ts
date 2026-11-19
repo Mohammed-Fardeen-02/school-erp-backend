@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authController } from './auth.controller';
 import { authenticate } from '../../core/middleware/authenticate';
+import { requireTenantContext } from '../../core/middleware/tenant-context';
 import { validateRequest } from '../../core/middleware/validate-request';
 import {
   loginRateLimiter,
@@ -14,6 +15,9 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
+  updateSecurityPolicySchema,
+  authActivityQuerySchema,
+  sessionQuerySchema,
 } from './auth.validation';
 
 export const authRoutes: Router = Router();
@@ -51,7 +55,7 @@ authRoutes.post(
 );
 
 // ==========================================
-// AUTHENTICATED ENDPOINTS
+// AUTHENTICATED USER SESSIONS & PROFILE
 // ==========================================
 
 authRoutes.post('/logout', authenticate, authController.logout);
@@ -64,11 +68,67 @@ authRoutes.delete('/sessions/:sessionId', authenticate, authController.revokeSes
 
 authRoutes.delete('/sessions', authenticate, authController.revokeOtherSessions);
 
+authRoutes.post('/sessions/revoke-others', authenticate, authController.revokeOtherSessions);
+
 authRoutes.post(
   '/change-password',
   authenticate,
   validateRequest({ body: changePasswordSchema }),
   authController.changePassword
+);
+
+// ==========================================
+// STAGE 4: TENANT SECURITY & DEVICE MANAGEMENT
+// ==========================================
+
+// Organization Active Sessions Discovery
+authRoutes.get(
+  '/organization-sessions',
+  authenticate,
+  requireTenantContext(),
+  validateRequest({ query: sessionQuerySchema }),
+  authController.getOrganizationSessions
+);
+
+// Admin Revocation of an Individual Member Session
+authRoutes.delete(
+  '/organization-sessions/:sessionId',
+  authenticate,
+  requireTenantContext(),
+  authController.revokeSession
+);
+
+// Admin Revocation of ALL Active Sessions for a Member (Bumping tokenVersion)
+authRoutes.delete(
+  '/organization-users/:userId/sessions',
+  authenticate,
+  requireTenantContext(),
+  authController.adminRevokeUserSessions
+);
+
+// Security Policies (Password Complexity, Lockout, Timeout, MFA)
+authRoutes.get(
+  '/policies',
+  authenticate,
+  requireTenantContext(),
+  authController.getSecurityPolicies
+);
+
+authRoutes.put(
+  '/policies',
+  authenticate,
+  requireTenantContext(),
+  validateRequest({ body: updateSecurityPolicySchema }),
+  authController.updateSecurityPolicies
+);
+
+// Authentication & Security Forensics Activity Log
+authRoutes.get(
+  '/activity',
+  authenticate,
+  requireTenantContext(),
+  validateRequest({ query: authActivityQuerySchema }),
+  authController.getAuthenticationActivity
 );
 
 export default authRoutes;
