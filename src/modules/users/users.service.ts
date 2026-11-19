@@ -8,6 +8,7 @@ import { EmailService } from '../../integrations/email/email.service';
 import { logger } from '../../core/logger/app-logger';
 import { usersRepository, UsersRepository } from './users.repository';
 import { settingsRepository } from '../settings/settings.repository';
+import { securityPolicyRepository } from '../auth/security-policy.repository';
 import {
   UserQueryFilters,
   PaginatedUsersResult,
@@ -296,6 +297,14 @@ export class UsersService {
 
     let passwordHash: string | undefined;
     if (dto.password) {
+      const policy = await securityPolicyRepository.findByOrganizationId(invitation.organizationId);
+      const validation = securityPolicyRepository.validatePassword(dto.password, policy);
+      if (!validation.valid) {
+        throw AppError.badRequest(
+          `Password does not meet organization policy requirements: ${validation.errors.join('; ')}`,
+          ErrorCode.VALIDATION_ERROR
+        );
+      }
       passwordHash = await hashPassword(dto.password);
     }
 

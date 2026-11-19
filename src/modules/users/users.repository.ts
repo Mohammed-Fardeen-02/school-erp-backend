@@ -70,7 +70,9 @@ export class UsersRepository {
    * Concurrency-safe atomic increment of failed login attempts.
    */
   async atomicIncrementFailedLogins(
-    userId: string
+    userId: string,
+    maxAttempts: number = 5,
+    lockoutMinutes: number = 15
   ): Promise<{ failedLogins: number; isLocked: boolean; lockedUntil: Date | null }> {
     const updated = await prisma.user.update({
       where: { id: userId },
@@ -80,8 +82,8 @@ export class UsersRepository {
       select: { failedLogins: true },
     });
 
-    if (updated.failedLogins >= 5) {
-      const lockoutUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes lockout
+    if (updated.failedLogins >= maxAttempts) {
+      const lockoutUntil = new Date(Date.now() + lockoutMinutes * 60 * 1000);
       await prisma.user.update({
         where: { id: userId },
         data: { lockedUntil: lockoutUntil },

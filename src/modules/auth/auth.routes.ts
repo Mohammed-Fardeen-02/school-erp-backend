@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authController } from './auth.controller';
 import { authenticate } from '../../core/middleware/authenticate';
 import { requireTenantContext } from '../../core/middleware/tenant-context';
+import { requirePermission } from '../../core/middleware/permission.middleware';
 import { validateRequest } from '../../core/middleware/validate-request';
 import {
   loginRateLimiter,
@@ -86,6 +87,7 @@ authRoutes.get(
   '/organization-sessions',
   authenticate,
   requireTenantContext(),
+  requirePermission('settings.organization_profile.identity.view'),
   validateRequest({ query: sessionQuerySchema }),
   authController.getOrganizationSessions
 );
@@ -95,6 +97,7 @@ authRoutes.delete(
   '/organization-sessions/:sessionId',
   authenticate,
   requireTenantContext(),
+  requirePermission('settings.user_assignments.allocations.revoke'),
   authController.revokeSession
 );
 
@@ -103,6 +106,7 @@ authRoutes.delete(
   '/organization-users/:userId/sessions',
   authenticate,
   requireTenantContext(),
+  requirePermission('settings.user_assignments.allocations.revoke'),
   authController.adminRevokeUserSessions
 );
 
@@ -111,6 +115,7 @@ authRoutes.get(
   '/policies',
   authenticate,
   requireTenantContext(),
+  requirePermission('settings.organization_profile.identity.view'),
   authController.getSecurityPolicies
 );
 
@@ -118,6 +123,7 @@ authRoutes.put(
   '/policies',
   authenticate,
   requireTenantContext(),
+  requirePermission('settings.organization_profile.identity.edit'),
   validateRequest({ body: updateSecurityPolicySchema }),
   authController.updateSecurityPolicies
 );
@@ -127,6 +133,7 @@ authRoutes.get(
   '/activity',
   authenticate,
   requireTenantContext(),
+  requirePermission('settings.audit_logs.trail.view'),
   validateRequest({ query: authActivityQuerySchema }),
   authController.getAuthenticationActivity
 );

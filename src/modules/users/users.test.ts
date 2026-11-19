@@ -415,6 +415,22 @@ describe('UsersService', () => {
       ).rejects.toThrow('This invitation has expired');
     });
 
+    it('should throw 400 when password violates organizational security policy', async () => {
+      (mockRepo.findInvitationByTokenHash as any).mockResolvedValue({
+        id: 'inv-1',
+        organizationId: 'org-123',
+        status: 'PENDING',
+        expiresAt: new Date(Date.now() + 100000),
+      });
+
+      await expect(
+        usersService.acceptInvitation({
+          token: 'valid-token',
+          password: 'weak',
+        })
+      ).rejects.toThrow('Password does not meet organization policy requirements');
+    });
+
     it('should successfully accept invitation and complete onboarding', async () => {
       (mockRepo.findInvitationByTokenHash as any).mockResolvedValue({
         id: 'inv-1',

@@ -64,11 +64,23 @@ export class AuthService {
       );
     }
 
+    // Resolve active organization security policy
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { userId: user.id, status: 'ACTIVE' },
+      select: { organizationId: true },
+    });
+    const orgId = membership?.organizationId || 'default';
+    const policy = await securityPolicyRepository.findByOrganizationId(orgId);
+
     // 3. Password Verification
     const isPasswordValid = await verifyPassword(user.passwordHash, params.password);
 
     if (!isPasswordValid) {
-      const lockoutResult = await usersRepository.atomicIncrementFailedLogins(user.id);
+      const lockoutResult = await usersRepository.atomicIncrementFailedLogins(
+        user.id,
+        policy.maxFailedLoginsBeforeLockout,
+        policy.lockoutDurationMinutes
+      );
 
       await prisma.auditLog.create({
         data: {
@@ -87,7 +99,7 @@ export class AuthService {
 
       if (lockoutResult.isLocked) {
         throw new AppError(
-          'Account is temporarily locked due to 5 consecutive failed login attempts. Please try again in 15 minutes.',
+          `Account is temporarily locked due to ${policy.maxFailedLoginsBeforeLockout} consecutive failed login attempts. Please try again in ${policy.lockoutDurationMinutes} minute(s).`,
           403,
           ErrorCode.ACCOUNT_LOCKED
         );
@@ -99,11 +111,26 @@ export class AuthService {
     // 4. Successful Authentication: Reset lockout counters
     await usersRepository.atomicResetFailedLogins(user.id, params.ipAddress);
 
-    // 5. Generate Refresh Token and Session Family
+    // Check Password Expiry Policy
+    let mustChangePassword = user.mustChangePassword;
+    if (policy.passwordExpiryDays > 0) {
+      const passwordAgeMs = Date.now() - new Date(user.updatedAt).getTime();
+      const maxAgeMs = policy.passwordExpiryDays * 24 * 60 * 60 * 1000;
+      if (passwordAgeMs > maxAgeMs) {
+        mustChangePassword = true;
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { mustChangePassword: true },
+        });
+      }
+    }
+
+    // 5. Generate Refresh Token and Session Family with Tenant Inactivity Timeout
     const rawRefreshToken = generateSecureRandomToken(32);
     const initialTokenHash = hashToken(rawRefreshToken);
     const familyId = crypto.randomUUID();
-    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const sessionTimeoutMs = (policy.sessionTimeoutMinutes || 30) * 60 * 1000;
+    const refreshExpiresAt = new Date(Date.now() + sessionTimeoutMs);
 
     const { session } = await sessionsRepository.createSession({
       userId: user.id,
@@ -159,7 +186,7 @@ export class AuthService {
       lastName: user.lastName,
       userType: user.userType,
       avatarUrl: user.avatarUrl,
-      mustChangePassword: user.mustChangePassword,
+      mustChangePassword,
       lastLoginAt: user.lastLoginAt,
     };
 
@@ -222,10 +249,19 @@ export class AuthService {
       throw new AppError('Account is inactive or not found', 401, ErrorCode.UNAUTHENTICATED);
     }
 
+    // Resolve tenant policy for session inactivity timeout
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { userId: user.id, status: 'ACTIVE' },
+      select: { organizationId: true },
+    });
+    const orgId = membership?.organizationId || 'default';
+    const policy = await securityPolicyRepository.findByOrganizationId(orgId);
+    const sessionTimeoutMs = (policy.sessionTimeoutMinutes || 30) * 60 * 1000;
+    const newExpiresAt = new Date(Date.now() + sessionTimeoutMs);
+
     // Rotate refresh token
     const newRawRefreshToken = generateSecureRandomToken(32);
     const newTokenHash = hashToken(newRawRefreshToken);
-    const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     await sessionsRepository.rotateRefreshToken(
       tokenRecord.session.id,

@@ -1,3 +1,6 @@
+import { AppError } from '../../core/errors/app-error';
+import { ErrorCode } from '../../core/errors/error-codes';
+
 export interface SecurityPolicyConfig {
   minPasswordLength: number;
   requireUppercase: boolean;
@@ -47,6 +50,13 @@ export class SecurityPolicyRepository {
    * Updates and persists security policies for an organization.
    */
   async update(organizationId: string, updates: Partial<SecurityPolicyConfig>): Promise<SecurityPolicyConfig> {
+    if (updates.twoFactorPolicy && updates.twoFactorPolicy !== 'OPTIONAL') {
+      throw new AppError(
+        "Two-factor policies 'ADMIN_ONLY' and 'MANDATORY' are currently unsupported because TOTP enrollment is pending. Only 'OPTIONAL' is permitted.",
+        400,
+        ErrorCode.VALIDATION_ERROR
+      );
+    }
     const current = await this.findByOrganizationId(organizationId);
     const updated: SecurityPolicyConfig = {
       ...current,
@@ -94,3 +104,4 @@ export class SecurityPolicyRepository {
 }
 
 export const securityPolicyRepository = new SecurityPolicyRepository();
+

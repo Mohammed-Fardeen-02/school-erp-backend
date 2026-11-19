@@ -39,7 +39,13 @@ export const updateSecurityPolicySchema = z.object({
   sessionTimeoutMinutes: z.number().int().min(5).max(1440).optional(),
   maxFailedLoginsBeforeLockout: z.number().int().min(3).max(20).optional(),
   lockoutDurationMinutes: z.number().int().min(1).max(1440).optional(),
-  twoFactorPolicy: z.enum(['OPTIONAL', 'ADMIN_ONLY', 'MANDATORY']).optional(),
+  twoFactorPolicy: z
+    .enum(['OPTIONAL', 'ADMIN_ONLY', 'MANDATORY'])
+    .refine((val) => val === 'OPTIONAL', {
+      message:
+        "Two-factor policies 'ADMIN_ONLY' and 'MANDATORY' are currently unsupported because TOTP enrollment is pending. Only 'OPTIONAL' is permitted.",
+    })
+    .optional(),
 });
 
 export const authActivityQuerySchema = z.object({

@@ -39,17 +39,38 @@ describe('Stage 4: Authentication, Device Security & Session Revocation', () => 
         minPasswordLength: 6, // Should be clamped to at least 8
         requireNumbers: true,
         sessionTimeoutMinutes: 15,
-        twoFactorPolicy: 'ADMIN_ONLY',
+        twoFactorPolicy: 'OPTIONAL',
       });
 
       expect(updated.minPasswordLength).toBe(8);
       expect(updated.sessionTimeoutMinutes).toBe(15);
-      expect(updated.twoFactorPolicy).toBe('ADMIN_ONLY');
+      expect(updated.twoFactorPolicy).toBe('OPTIONAL');
 
       // Verify retrieval returns the updated policy
       const retrieved = await securityPolicyRepository.findByOrganizationId(orgId);
       expect(retrieved.sessionTimeoutMinutes).toBe(15);
-      expect(retrieved.twoFactorPolicy).toBe('ADMIN_ONLY');
+      expect(retrieved.twoFactorPolicy).toBe('OPTIONAL');
+    });
+
+    it('should reject unsupported MFA policies (ADMIN_ONLY, MANDATORY) until TOTP engine is implemented', async () => {
+      await expect(
+        securityPolicyRepository.update(orgId, { twoFactorPolicy: 'ADMIN_ONLY' as any })
+      ).rejects.toThrow(/unsupported because TOTP enrollment is pending/);
+
+      await expect(
+        securityPolicyRepository.update(orgId, { twoFactorPolicy: 'MANDATORY' as any })
+      ).rejects.toThrow(/unsupported because TOTP enrollment is pending/);
+
+      // Schema validation should also reject
+      expect(() =>
+        updateSecurityPolicySchema.parse({ twoFactorPolicy: 'ADMIN_ONLY' })
+      ).toThrow();
+      expect(() =>
+        updateSecurityPolicySchema.parse({ twoFactorPolicy: 'MANDATORY' })
+      ).toThrow();
+      expect(
+        updateSecurityPolicySchema.parse({ twoFactorPolicy: 'OPTIONAL' }).twoFactorPolicy
+      ).toBe('OPTIONAL');
     });
 
     it('should validate passwords according to the active policy', () => {
@@ -88,7 +109,7 @@ describe('Stage 4: Authentication, Device Security & Session Revocation', () => 
         minPasswordLength: 12,
         requireUppercase: true,
         sessionTimeoutMinutes: 60,
-        twoFactorPolicy: 'MANDATORY',
+        twoFactorPolicy: 'OPTIONAL',
       });
       expect(valid.success).toBe(true);
 
@@ -352,4 +373,170 @@ describe('Stage 4: Authentication, Device Security & Session Revocation', () => 
       expect(result.logs[1].actorName).toBe('System Security');
     });
   });
+
+  describe('Dynamic Policy Enforcement & RBAC Guards (Stage 4.1)', () => {
+    it('should enforce dynamic failed login thresholds and lockout duration from active org policy', async () => {
+      await securityPolicyRepository.update(orgId, {
+        maxFailedLoginsBeforeLockout: 3,
+        lockoutDurationMinutes: 45,
+      });
+
+      const mockUser: any = {
+        id: 'usr-dynamic-lockout',
+        email: 'lockout@school.edu',
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$dummyhash$dummyhash',
+        isActive: true,
+        userType: 'TENANT',
+        tokenVersion: 1,
+      };
+
+      vi.spyOn(usersRepository, 'findByEmail').mockResolvedValue(mockUser);
+      vi.spyOn(prisma.organizationMembership, 'findFirst').mockResolvedValue({
+        organizationId: orgId,
+        status: 'ACTIVE',
+      } as any);
+
+      const lockoutSpy = vi.spyOn(usersRepository, 'atomicIncrementFailedLogins').mockResolvedValue({
+        failedLogins: 3,
+        isLocked: true,
+        lockedUntil: new Date(Date.now() + 45 * 60 * 1000),
+      });
+
+      vi.spyOn(prisma.auditLog, 'create').mockResolvedValue({} as any);
+
+      await expect(
+        authService.login({
+          email: 'lockout@school.edu',
+          password: 'WrongPassword123!',
+          ipAddress: '127.0.0.1',
+          userAgent: 'TestAgent',
+        })
+      ).rejects.toThrow(/temporarily locked due to 3 consecutive failed login attempts.*45 minute/i);
+
+      expect(lockoutSpy).toHaveBeenCalledWith('usr-dynamic-lockout', 3, 45);
+    });
+
+    it('should set session expiration dynamically based on org policy sessionTimeoutMinutes', async () => {
+      await securityPolicyRepository.update(orgId, {
+        sessionTimeoutMinutes: 45,
+      });
+
+      const mockUser: any = {
+        id: 'usr-timeout-test',
+        email: 'timeout@school.edu',
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$dummyhash$dummyhash',
+        isActive: true,
+        userType: 'TENANT',
+        tokenVersion: 1,
+        mustChangePassword: false,
+        updatedAt: new Date(),
+      };
+
+      vi.spyOn(usersRepository, 'findByEmail').mockResolvedValue(mockUser);
+      vi.spyOn(prisma.organizationMembership, 'findFirst').mockResolvedValue({
+        organizationId: orgId,
+        status: 'ACTIVE',
+      } as any);
+      vi.spyOn(usersRepository, 'atomicResetFailedLogins').mockResolvedValue();
+
+      let createdExpiresAt: Date | undefined;
+      vi.spyOn(sessionsRepository, 'createSession').mockImplementation(async (params) => {
+        createdExpiresAt = params.expiresAt;
+        return {
+          session: {
+            id: 'sess-timeout-1',
+            userId: mockUser.id,
+            familyId: params.familyId,
+            expiresAt: params.expiresAt,
+          } as any,
+          refreshToken: {} as any,
+        };
+      });
+
+      const pwdModule = await import('../../core/security/password');
+      vi.spyOn(pwdModule, 'verifyPassword').mockResolvedValue(true);
+
+      const loginRes = await authService.login({
+        email: 'timeout@school.edu',
+        password: 'ValidPassword123!',
+        ipAddress: '127.0.0.1',
+        userAgent: 'TestAgent',
+      });
+
+      expect(loginRes).toBeDefined();
+      expect(createdExpiresAt).toBeDefined();
+      const diffMinutes = Math.round((createdExpiresAt!.getTime() - Date.now()) / (60 * 1000));
+      expect(diffMinutes).toBe(45);
+    });
+
+    it('should set mustChangePassword to true when user password has expired under policy', async () => {
+      await securityPolicyRepository.update(orgId, {
+        passwordExpiryDays: 30,
+      });
+
+      const oldDate = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000); // 40 days ago
+      const mockUser: any = {
+        id: 'usr-pwd-expired',
+        email: 'expired@school.edu',
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$dummyhash$dummyhash',
+        isActive: true,
+        userType: 'TENANT',
+        tokenVersion: 1,
+        mustChangePassword: false,
+        updatedAt: oldDate,
+      };
+
+      vi.spyOn(usersRepository, 'findByEmail').mockResolvedValue(mockUser);
+      vi.spyOn(prisma.organizationMembership, 'findFirst').mockResolvedValue({
+        organizationId: orgId,
+        status: 'ACTIVE',
+      } as any);
+      vi.spyOn(usersRepository, 'atomicResetFailedLogins').mockResolvedValue();
+      const userUpdateSpy = vi.spyOn(prisma.user, 'update').mockResolvedValue({} as any);
+
+      vi.spyOn(sessionsRepository, 'createSession').mockResolvedValue({
+        session: { id: 'sess-exp', userId: mockUser.id, expiresAt: new Date() } as any,
+        refreshToken: {} as any,
+      });
+
+      const pwdModule = await import('../../core/security/password');
+      vi.spyOn(pwdModule, 'verifyPassword').mockResolvedValue(true);
+
+      const loginRes = await authService.login({
+        email: 'expired@school.edu',
+        password: 'ValidPassword123!',
+      });
+
+      expect(loginRes.user.mustChangePassword).toBe(true);
+      expect(userUpdateSpy).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: { mustChangePassword: true },
+      });
+    });
+
+    it('should protect administrative Stage 4 endpoints with requirePermission middleware', async () => {
+      const { authRoutes } = await import('./auth.routes');
+
+      const adminRoutes = [
+        { path: '/organization-sessions', method: 'get' },
+        { path: '/organization-sessions/:sessionId', method: 'delete' },
+        { path: '/organization-users/:userId/sessions', method: 'delete' },
+        { path: '/policies', method: 'get' },
+        { path: '/policies', method: 'put' },
+        { path: '/activity', method: 'get' },
+      ];
+
+      for (const expected of adminRoutes) {
+        const route = authRoutes.stack.find(
+          (layer: any) =>
+            layer.route &&
+            layer.route.path === expected.path &&
+            layer.route.methods[expected.method]
+        );
+        expect(route, `Route ${expected.method.toUpperCase()} ${expected.path} should exist`).toBeDefined();
+        expect(route.route.stack.length).toBeGreaterThanOrEqual(4);
+      }
+    });
+  });
 });
+
