@@ -33,6 +33,7 @@ export class AuthService {
     ipAddress?: string;
     userAgent?: string;
     deviceInfo?: string;
+    organizationId?: string;
   }): Promise<LoginResponse> {
     const user = await usersRepository.findByEmail(params.email);
 
@@ -64,11 +65,24 @@ export class AuthService {
       );
     }
 
-    // Resolve active organization security policy
-    const membership = await prisma.organizationMembership.findFirst({
-      where: { userId: user.id, status: 'ACTIVE' },
-      select: { organizationId: true },
-    });
+    // Resolve validated tenant context if provided, otherwise resolve default active membership
+    let validatedOrgId: string | null = null;
+    if (params.organizationId) {
+      const explicitMembership = await prisma.organizationMembership.findFirst({
+        where: { userId: user.id, organizationId: params.organizationId, status: 'ACTIVE' },
+        select: { organizationId: true },
+      });
+      if (explicitMembership) {
+        validatedOrgId = explicitMembership.organizationId;
+      }
+    }
+
+    const membership = validatedOrgId
+      ? { organizationId: validatedOrgId }
+      : await prisma.organizationMembership.findFirst({
+          where: { userId: user.id, status: 'ACTIVE' },
+          select: { organizationId: true },
+        });
     const orgId = membership?.organizationId || 'default';
     const policy = await securityPolicyRepository.findByOrganizationId(orgId);
 
@@ -84,6 +98,7 @@ export class AuthService {
 
       await prisma.auditLog.create({
         data: {
+          organizationId: validatedOrgId,
           userId: user.id,
           action: 'LOGIN_FAILED',
           entity: 'User',
@@ -163,6 +178,7 @@ export class AuthService {
     // 7. Audit Log (Sanitized)
     await prisma.auditLog.create({
       data: {
+        organizationId: validatedOrgId,
         userId: user.id,
         action: 'LOGIN_SUCCESS',
         entity: 'User',
@@ -302,10 +318,11 @@ export class AuthService {
   /**
    * Log out current session
    */
-  async logout(sessionId: string, userId: string): Promise<void> {
+  async logout(sessionId: string, userId: string, organizationId?: string): Promise<void> {
     await sessionsRepository.revokeSession(sessionId, 'USER_LOGOUT');
     await prisma.auditLog.create({
       data: {
+        organizationId: organizationId || null,
         userId,
         action: 'LOGOUT',
         entity: 'Session',
@@ -447,7 +464,8 @@ export class AuthService {
     userId: string,
     currentPassword: string,
     newPassword: string,
-    currentSessionId?: string
+    currentSessionId?: string,
+    organizationId?: string
   ): Promise<void> {
     const user = await usersRepository.findById(userId);
     if (!user) {
@@ -463,7 +481,7 @@ export class AuthService {
       where: { userId, status: 'ACTIVE' },
       select: { organizationId: true },
     });
-    const orgId = membership?.organizationId || 'default';
+    const orgId = organizationId || membership?.organizationId || 'default';
     const policy = await securityPolicyRepository.findByOrganizationId(orgId);
     const validation = securityPolicyRepository.validatePassword(newPassword, policy);
     if (!validation.valid) {
@@ -483,6 +501,7 @@ export class AuthService {
 
     await prisma.auditLog.create({
       data: {
+        organizationId: organizationId || null,
         userId: user.id,
         action: 'PASSWORD_CHANGED',
         entity: 'User',
@@ -742,9 +761,11 @@ export class AuthService {
             memberships: {
               some: {
                 organizationId: params.organizationId,
+                status: 'ACTIVE',
               },
             },
           },
+          organizationId: null, // Safe backward-compatibility fallback for legacy logs without tenant context
         },
       ];
     }

@@ -10,6 +10,7 @@ import { ErrorCode } from '../../core/errors/error-codes';
 import { withTransactionRetry } from '../../shared/utils/transaction-retry';
 import { prisma } from '../../core/database/prisma-client';
 import { sanitizeAuditPayload } from '../../core/security/audit-sanitizer';
+import { logger } from '../../core/logger/app-logger';
 
 export class BranchesService {
   /**
@@ -95,6 +96,7 @@ export class BranchesService {
       .create({
         data: {
           organizationId,
+          locationId: branch.id,
           userId: actorUserId,
           action: 'BRANCH_CREATED',
           entity: 'Branch',
@@ -107,7 +109,9 @@ export class BranchesService {
           }),
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, branchId: branch.id, organizationId }, 'Failed to record audit log for branch creation');
+      });
 
     return branch;
   }
@@ -130,15 +134,18 @@ export class BranchesService {
       .create({
         data: {
           organizationId,
+          locationId: id,
           userId: actorUserId,
           action: 'BRANCH_UPDATED',
           entity: 'Branch',
           entityId: id,
-          oldState: sanitizeAuditPayload(existing),
+          previousState: sanitizeAuditPayload(existing),
           newState: sanitizeAuditPayload(updated),
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, branchId: id, organizationId }, 'Failed to record audit log for branch update');
+      });
 
     return updated!;
   }
@@ -150,6 +157,7 @@ export class BranchesService {
       .create({
         data: {
           organizationId,
+          locationId: id,
           userId: actorUserId,
           action: 'MAIN_BRANCH_DESIGNATED',
           entity: 'Branch',
@@ -157,7 +165,9 @@ export class BranchesService {
           newState: { isMainCampus: true },
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, branchId: id, organizationId }, 'Failed to record audit log for main branch designation');
+      });
 
     return updated;
   }
@@ -181,6 +191,7 @@ export class BranchesService {
       .create({
         data: {
           organizationId,
+          locationId: id,
           userId: actorUserId,
           action: 'BRANCH_STATUS_TOGGLED',
           entity: 'Branch',
@@ -188,7 +199,9 @@ export class BranchesService {
           newState: { isActive },
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, branchId: id, organizationId }, 'Failed to record audit log for branch status toggle');
+      });
 
     return updated;
   }
@@ -205,14 +218,17 @@ export class BranchesService {
       .create({
         data: {
           organizationId,
+          locationId: id,
           userId: actorUserId,
           action: 'BRANCH_DELETED',
           entity: 'Branch',
           entityId: id,
-          oldState: sanitizeAuditPayload(existing),
+          previousState: sanitizeAuditPayload(existing),
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, branchId: id, organizationId }, 'Failed to record audit log for branch deletion');
+      });
 
     return res;
   }

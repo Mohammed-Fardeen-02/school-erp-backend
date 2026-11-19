@@ -289,6 +289,7 @@ model Location {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userRoles      UserRole[]
   invitations    OrganizationInvitation[]
+  auditLogs      AuditLog[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -526,6 +527,7 @@ model RbacInvalidationOutbox {
 model AuditLog {
   id             String        @id @default(uuid())
   organizationId String?       @map("organization_id")
+  locationId     String?       @map("location_id")
   userId         String?       @map("user_id")
   action         String        @db.VarChar(100) // e.g. "LOGIN_SUCCESS", "LOGIN_FAILED", "REPLAY_DETECTED"
   entity         String        @db.VarChar(100) // e.g. "User", "Session"
@@ -536,13 +538,18 @@ model AuditLog {
   userAgent      String?       @map("user_agent") @db.Text
   createdAt      DateTime      @default(now()) @map("created_at")
 
-  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location       Location?     @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   @@index([organizationId])
+  @@index([locationId])
   @@index([userId])
+  @@index([action])
   @@index([entity, entityId])
   @@index([createdAt])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([locationId, createdAt(sort: Desc)])
   @@schema("audit")
   @@map("audit_logs")
 }

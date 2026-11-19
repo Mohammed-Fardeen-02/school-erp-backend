@@ -9,6 +9,7 @@ import { ErrorCode } from '../../core/errors/error-codes';
 import { withTransactionRetry } from '../../shared/utils/transaction-retry';
 import { prisma } from '../../core/database/prisma-client';
 import { sanitizeAuditPayload } from '../../core/security/audit-sanitizer';
+import { logger } from '../../core/logger/app-logger';
 
 export class LocationsService {
   async getLocations(organizationId: string, filters?: LocationQueryFilters) {
@@ -50,6 +51,7 @@ export class LocationsService {
       .create({
         data: {
           organizationId,
+          locationId: location.id,
           userId: actorUserId,
           action: 'LOCATION_CREATED',
           entity: 'Location',
@@ -62,7 +64,9 @@ export class LocationsService {
           }),
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, locationId: location.id, organizationId }, 'Failed to record audit log for location creation');
+      });
 
     return location;
   }
@@ -88,15 +92,18 @@ export class LocationsService {
       .create({
         data: {
           organizationId,
+          locationId: id,
           userId: actorUserId,
           action: 'LOCATION_UPDATED',
           entity: 'Location',
           entityId: id,
-          oldState: sanitizeAuditPayload(existing),
+          previousState: sanitizeAuditPayload(existing),
           newState: sanitizeAuditPayload(updated),
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, locationId: id, organizationId }, 'Failed to record audit log for location update');
+      });
 
     return updated;
   }
@@ -114,6 +121,7 @@ export class LocationsService {
       .create({
         data: {
           organizationId,
+          locationId: targetLocationId,
           userId: actorUserId,
           action: 'MAIN_CAMPUS_DESIGNATED',
           entity: 'Location',
@@ -126,7 +134,9 @@ export class LocationsService {
           }),
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, locationId: targetLocationId, organizationId }, 'Failed to record audit log for main campus designation');
+      });
 
     return result;
   }
@@ -145,6 +155,7 @@ export class LocationsService {
       .create({
         data: {
           organizationId,
+          locationId: id,
           userId: actorUserId,
           action: isActive ? 'LOCATION_ACTIVATED' : 'LOCATION_DEACTIVATED',
           entity: 'Location',
@@ -155,7 +166,9 @@ export class LocationsService {
           }),
         },
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        logger.error({ err, locationId: id, organizationId }, 'Failed to record audit log for location status toggle');
+      });
 
     return result;
   }

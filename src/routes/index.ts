@@ -10,6 +10,7 @@ import { userRolesRoutes } from '../modules/user-roles/user-roles.routes';
 import { settingsRoutes } from '../modules/settings/settings.routes';
 import { branchesRoutes } from '../modules/branches/branches.routes';
 import { usersRoutes } from '../modules/users/users.routes';
+import { auditLogsRoutes } from '../modules/audit-logs/audit-logs.routes';
 
 const apiRouter = Router();
 
@@ -46,5 +47,8 @@ apiRouter.use('/settings', settingsRoutes);
 // Academics & Institutional Branches Master
 apiRouter.use('/branches', branchesRoutes);
 apiRouter.use('/academics/branches', branchesRoutes);
+
+// Audit & Compliance Logs Forensics
+apiRouter.use('/audit-logs', auditLogsRoutes);
 
 export default apiRouter;

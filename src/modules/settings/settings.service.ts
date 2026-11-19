@@ -47,6 +47,7 @@ export class SettingsService {
       throw AppError.badRequest('Organization context is required', ErrorCode.VALIDATION_ERROR);
     }
 
+    const existing = await settingsRepository.findByOrganizationId(organizationId);
     const updated = await settingsRepository.updateByOrganizationId(organizationId, payload);
 
     if (actorUserId) {
@@ -57,15 +58,11 @@ export class SettingsService {
           action: 'TENANT_CONFIGURATION_UPDATED',
           entity: 'TenantConfiguration',
           entityId: organizationId,
-          newState: {
-            smtpConfigured: Boolean(updated.smtp.host),
-            storageProvider: updated.storage.provider,
-            razorpayMode: updated.razorpay.mode,
-            themeName: updated.theme.institutionName,
-          },
+          previousState: this.sanitizeConfig(existing),
+          newState: this.sanitizeConfig(updated),
         },
       }).catch((err: any) => {
-        logger.warn({ err }, 'Failed to record audit log for configuration update');
+        logger.error({ err, organizationId }, 'Failed to record audit log for configuration update');
       });
     }
 
@@ -104,7 +101,9 @@ export class SettingsService {
           entityId: serverHost,
           newState: { toEmail: payload.toEmail, templateType: payload.templateType },
         },
-      }).catch(() => {});
+      }).catch((err: any) => {
+        logger.error({ err, organizationId }, 'Failed to record audit log for test email dispatch');
+      });
     }
 
     return {

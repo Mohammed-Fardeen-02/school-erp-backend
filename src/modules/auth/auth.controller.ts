@@ -15,6 +15,7 @@ export class AuthController {
       const clientIp = req.ip || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
       const deviceInfo = (req.headers['x-device-info'] as string) || userAgent;
+      const explicitOrgId = (req.headers['x-organization-id'] as string) || req.body?.organizationId;
 
       const result = await authService.login({
         email,
@@ -22,6 +23,7 @@ export class AuthController {
         ipAddress: clientIp,
         userAgent,
         deviceInfo,
+        organizationId: explicitOrgId,
       });
 
       // Optionally set HTTP-only cookie for refresh token
@@ -71,7 +73,7 @@ export class AuthController {
   async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (req.user?.sessionId && req.user?.id) {
-        await authService.logout(req.user.sessionId, req.user.id);
+        await authService.logout(req.user.sessionId, req.user.id, req.organizationId || (req.headers['x-organization-id'] as string));
       }
 
       res.clearCookie('refreshToken', {
@@ -357,7 +359,8 @@ export class AuthController {
         req.user.id,
         currentPassword,
         newPassword,
-        req.user.sessionId
+        req.user.sessionId,
+        req.organizationId || (req.headers['x-organization-id'] as string)
       );
 
       ResponseHelper.ok(res, null, 'Password updated successfully. Other device sessions have been terminated.');

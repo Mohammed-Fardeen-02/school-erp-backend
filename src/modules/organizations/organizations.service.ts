@@ -11,6 +11,7 @@ import { ErrorCode } from '../../core/errors/error-codes';
 import { validateModuleDependencies } from '../../shared/constants/modules';
 import { prisma } from '../../core/database/prisma-client';
 import { sanitizeAuditPayload } from '../../core/security/audit-sanitizer';
+import { logger } from '../../core/logger/app-logger';
 
 export class OrganizationsService {
   async getOrganizations(
@@ -106,7 +107,9 @@ export class OrganizationsService {
           subscriptionPlan: result.organization.subscriptionPlan,
         }),
       },
-    }).catch(() => {});
+    }).catch((err: any) => {
+      logger.error({ err, organizationId: result.organization.id }, 'Failed to record audit log for organization provisioning');
+    });
 
     return result;
   }
@@ -150,7 +153,9 @@ export class OrganizationsService {
           previousState: sanitizeAuditPayload(existing),
           newState: sanitizeAuditPayload(updated),
         },
-      }).catch(() => {});
+      }).catch((err: any) => {
+        logger.error({ err, organizationId: id }, 'Failed to record audit log for organization update');
+      });
     }
 
     return updated;
@@ -181,7 +186,9 @@ export class OrganizationsService {
         previousState: { status: existing.status },
         newState: { status: dto.status, reason: dto.reason },
       },
-    }).catch(() => {});
+    }).catch((err: any) => {
+      logger.error({ err, organizationId: id }, 'Failed to record audit log for organization status update');
+    });
 
     return updated;
   }
@@ -222,7 +229,9 @@ export class OrganizationsService {
         previousState: { modules: previousModules },
         newState: { modules: updatedModules },
       },
-    }).catch(() => {});
+    }).catch((err: any) => {
+      logger.error({ err, organizationId: id }, 'Failed to record audit log for organization modules update');
+    });
 
     return updatedModules;
   }

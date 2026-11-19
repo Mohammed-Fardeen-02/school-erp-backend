@@ -4,6 +4,7 @@ import { authenticate } from '../../core/middleware/authenticate';
 import { authorizeRoles } from '../../core/middleware/authorize';
 import { requireTenantContext } from '../../core/middleware/tenant-context';
 import { requireTenantOwner } from '../../core/middleware/tenant-admin';
+import { requirePermission } from '../../core/middleware/permission.middleware';
 import { validateRequest } from '../../core/middleware/validate-request';
 import {
   createOrganizationSchema,
@@ -80,6 +81,7 @@ organizationsRoutes.get(
   '/:id/activity',
   authenticate,
   requireTenantContext(),
+  requirePermission('settings.audit_logs.trail.view'),
   organizationsController.getActivity
 );
 
