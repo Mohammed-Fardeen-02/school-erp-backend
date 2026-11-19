@@ -156,6 +156,7 @@ export class UsersRepository {
         passwordResetHash: null,
         passwordResetExpires: null,
         mustChangePassword: false,
+        passwordChangedAt: new Date(),
         tokenVersion: { increment: 1 },
       },
     });
@@ -777,7 +778,7 @@ export class UsersRepository {
       const updatedUser = await tx.user.update({
         where: { id: user.id },
         data: {
-          ...(passwordHash && { passwordHash }),
+          ...(passwordHash && { passwordHash, passwordChangedAt: new Date() }),
           ...(profileData.firstName && { firstName: profileData.firstName.trim() }),
           ...(profileData.lastName && { lastName: profileData.lastName.trim() }),
           ...(profileData.phone && { phone: profileData.phone.trim() }),

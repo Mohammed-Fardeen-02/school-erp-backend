@@ -35,6 +35,7 @@ model User {
   userType             UserType                 @default(TENANT) @map("user_type")
   isActive             Boolean                  @default(true) @map("is_active")
   mustChangePassword   Boolean                  @default(false) @map("must_change_password")
+  passwordChangedAt    DateTime?                @map("password_changed_at")
 
   // Real-Time Access Token Invalidation
   tokenVersion         Int                      @default(1) @map("token_version")
@@ -74,6 +75,8 @@ model Session {
   revokedAt     DateTime?      @map("revoked_at")
   revokedReason String?        @map("revoked_reason") @db.VarChar(100) // "LOGOUT", "REUSE_DETECTED", "PASSWORD_CHANGED"
   expiresAt     DateTime       @map("expires_at")
+  lastActivityAt DateTime      @default(now()) @map("last_activity_at")
+  absoluteExpiresAt DateTime?  @map("absolute_expires_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
 

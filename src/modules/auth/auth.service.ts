@@ -111,10 +111,11 @@ export class AuthService {
     // 4. Successful Authentication: Reset lockout counters
     await usersRepository.atomicResetFailedLogins(user.id, params.ipAddress);
 
-    // Check Password Expiry Policy
+    // Check Password Expiry Policy (based exclusively on actual password change)
     let mustChangePassword = user.mustChangePassword;
     if (policy.passwordExpiryDays > 0) {
-      const passwordAgeMs = Date.now() - new Date(user.updatedAt).getTime();
+      const lastPasswordChange = user.passwordChangedAt || user.createdAt;
+      const passwordAgeMs = Date.now() - new Date(lastPasswordChange).getTime();
       const maxAgeMs = policy.passwordExpiryDays * 24 * 60 * 60 * 1000;
       if (passwordAgeMs > maxAgeMs) {
         mustChangePassword = true;
@@ -125,12 +126,14 @@ export class AuthService {
       }
     }
 
-    // 5. Generate Refresh Token and Session Family with Tenant Inactivity Timeout
+    // 5. Generate Refresh Token and Session Family with Sliding Inactivity Timeout and Absolute Limit
     const rawRefreshToken = generateSecureRandomToken(32);
     const initialTokenHash = hashToken(rawRefreshToken);
     const familyId = crypto.randomUUID();
     const sessionTimeoutMs = (policy.sessionTimeoutMinutes || 30) * 60 * 1000;
-    const refreshExpiresAt = new Date(Date.now() + sessionTimeoutMs);
+    const now = new Date();
+    const refreshExpiresAt = new Date(now.getTime() + sessionTimeoutMs);
+    const absoluteExpiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7-day security limit
 
     const { session } = await sessionsRepository.createSession({
       userId: user.id,
@@ -140,6 +143,7 @@ export class AuthService {
       userAgent: params.userAgent,
       initialTokenHash,
       expiresAt: refreshExpiresAt,
+      absoluteExpiresAt,
     });
 
     // 6. Generate Short-Lived Access Token (carrying tokenVersion and roles)
@@ -238,9 +242,13 @@ export class AuthService {
       );
     }
 
-    // Check expiration
-    if (tokenRecord.expiresAt < new Date() || tokenRecord.session.expiresAt < new Date()) {
+    // Check expiration and absolute security lifetime limits
+    const now = new Date();
+    if (tokenRecord.expiresAt < now || tokenRecord.session.expiresAt < now) {
       throw new AppError('Refresh token has expired', 401, ErrorCode.TOKEN_EXPIRED);
+    }
+    if (tokenRecord.session.absoluteExpiresAt && tokenRecord.session.absoluteExpiresAt < now) {
+      throw new AppError('Session has reached its absolute security limit', 401, ErrorCode.TOKEN_EXPIRED);
     }
 
     // Verify user status

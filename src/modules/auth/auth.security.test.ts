@@ -469,12 +469,14 @@ describe('Stage 4: Authentication, Device Security & Session Revocation', () => 
       expect(diffMinutes).toBe(45);
     });
 
-    it('should set mustChangePassword to true when user password has expired under policy', async () => {
+    it('should set mustChangePassword to true based exclusively on passwordChangedAt (profile updates do not reset age)', async () => {
       await securityPolicyRepository.update(orgId, {
         passwordExpiryDays: 30,
       });
 
-      const oldDate = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000); // 40 days ago
+      const oldPasswordChangedAt = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000); // 40 days ago
+      const recentProfileUpdatedAt = new Date(Date.now() - 5 * 60 * 1000); // Profile updated 5 minutes ago!
+
       const mockUser: any = {
         id: 'usr-pwd-expired',
         email: 'expired@school.edu',
@@ -483,7 +485,8 @@ describe('Stage 4: Authentication, Device Security & Session Revocation', () => 
         userType: 'TENANT',
         tokenVersion: 1,
         mustChangePassword: false,
-        updatedAt: oldDate,
+        passwordChangedAt: oldPasswordChangedAt,
+        updatedAt: recentProfileUpdatedAt,
       };
 
       vi.spyOn(usersRepository, 'findByEmail').mockResolvedValue(mockUser);
@@ -507,10 +510,123 @@ describe('Stage 4: Authentication, Device Security & Session Revocation', () => 
         password: 'ValidPassword123!',
       });
 
+      // Crucial: Must trigger password change even though profile was updated 5 minutes ago!
       expect(loginRes.user.mustChangePassword).toBe(true);
       expect(userUpdateSpy).toHaveBeenCalledWith({
         where: { id: mockUser.id },
         data: { mustChangePassword: true },
+      });
+    });
+
+    describe('Session Sliding Inactivity Timeout & Anti-Revival Suite (Stage 4.2)', () => {
+      it('1. Active users can continue beyond the configured inactivity period via sliding window', async () => {
+        const sessionId = 'sess-sliding-active-001';
+        const now = new Date();
+        const initialExpiry = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes
+        const absoluteCeiling = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        const mockSessionRecord: any = {
+          id: sessionId,
+          userId: 'usr-active-1',
+          isRevoked: false,
+          expiresAt: initialExpiry,
+          lastActivityAt: now,
+          absoluteExpiresAt: absoluteCeiling,
+        };
+
+        vi.spyOn(prisma.session, 'findUnique').mockResolvedValue(mockSessionRecord);
+        const updateManySpy = vi.spyOn(prisma.session, 'updateMany').mockResolvedValue({ count: 1 });
+
+        // User makes activity 20 minutes later
+        const result = await sessionsRepository.touchSessionActivity(sessionId, 30);
+
+        expect(result.valid).toBe(true);
+        expect(result.session).toBeDefined();
+        // The new expiry should slide forward ~30 minutes from current activity
+        const newExpiryMinutes = Math.round((result.session!.expiresAt.getTime() - Date.now()) / (60 * 1000));
+        expect(newExpiryMinutes).toBe(30);
+        expect(updateManySpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              id: sessionId,
+              isRevoked: false,
+            }),
+          })
+        );
+      });
+
+      it('2. Inactive users are rejected after the configured timeout period', async () => {
+        const sessionId = 'sess-inactive-expired-001';
+        const pastExpiry = new Date(Date.now() - 5 * 60 * 1000); // Expired 5 minutes ago
+
+        const expiredSession: any = {
+          id: sessionId,
+          userId: 'usr-inactive-1',
+          isRevoked: false,
+          expiresAt: pastExpiry,
+          lastActivityAt: new Date(Date.now() - 35 * 60 * 1000),
+          absoluteExpiresAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000),
+        };
+
+        vi.spyOn(prisma.session, 'findUnique').mockResolvedValue(expiredSession);
+        const updateManySpy = vi.spyOn(prisma.session, 'updateMany');
+
+        const result = await sessionsRepository.touchSessionActivity(sessionId, 30);
+
+        expect(result.valid).toBe(false);
+        expect(result.reason).toBe('EXPIRED');
+        expect(updateManySpy).not.toHaveBeenCalled();
+      });
+
+      it('3. Revoked sessions cannot be extended and reject concurrent activity', async () => {
+        const sessionId = 'sess-revoked-001';
+
+        const revokedSession: any = {
+          id: sessionId,
+          userId: 'usr-revoked-1',
+          isRevoked: true,
+          revokedAt: new Date(),
+          expiresAt: new Date(Date.now() + 20 * 60 * 1000), // even if nominal expiresAt is in future
+          lastActivityAt: new Date(),
+          absoluteExpiresAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000),
+        };
+
+        vi.spyOn(prisma.session, 'findUnique').mockResolvedValue(revokedSession);
+        const updateManySpy = vi.spyOn(prisma.session, 'updateMany');
+
+        const result = await sessionsRepository.touchSessionActivity(sessionId, 30);
+
+        expect(result.valid).toBe(false);
+        expect(result.reason).toBe('REVOKED');
+        expect(updateManySpy).not.toHaveBeenCalled();
+      });
+
+      it('4. Expired sessions cannot be revived through refresh token rotation', async () => {
+        const sessionId = 'sess-expired-for-refresh';
+        const pastExpiry = new Date(Date.now() - 10 * 1000); // Expired 10s ago
+
+        const expiredTokenRecord: any = {
+          id: 'rt-expired-001',
+          sessionId,
+          tokenHash: 'some-hash',
+          consumedAt: null,
+          revokedAt: null,
+          expiresAt: pastExpiry,
+          session: {
+            id: sessionId,
+            userId: 'usr-expired-refresh',
+            familyId: 'fam-exp-1',
+            isRevoked: false,
+            expiresAt: pastExpiry,
+            absoluteExpiresAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000),
+          },
+        };
+
+        vi.spyOn(sessionsRepository, 'findRefreshTokenWithSession').mockResolvedValue(expiredTokenRecord);
+
+        await expect(
+          authService.refreshAccessToken('plain-token-string')
+        ).rejects.toThrow('Refresh token has expired');
       });
     });
 

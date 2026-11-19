@@ -87,7 +87,7 @@ authRoutes.get(
   '/organization-sessions',
   authenticate,
   requireTenantContext(),
-  requirePermission('settings.organization_profile.identity.view'),
+  requirePermission('settings.user_assignments.allocations.view'),
   validateRequest({ query: sessionQuerySchema }),
   authController.getOrganizationSessions
 );
