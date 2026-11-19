@@ -5,6 +5,7 @@ import { AppError } from '../errors/app-error';
 import { ErrorCode } from '../errors/error-codes';
 import { AuthenticatedUser } from '../types/common.types';
 import { prisma } from '../database/prisma-client';
+import { sessionsRepository } from '../../modules/auth/sessions.repository';
 
 interface JwtPayloadWithUser {
   sub?: string;
@@ -90,14 +91,16 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       );
     }
 
-    // 5. Verify Session Status if sessionId is present
+    // 5. Verify & Extend Session Status if sessionId is present (Sliding Inactivity Window)
     if (decoded.sessionId) {
-      const session = await prisma.session.findUnique({
-        where: { id: decoded.sessionId },
-        select: { isRevoked: true, expiresAt: true },
-      });
+      const sessionResult = await sessionsRepository.touchSessionActivity(decoded.sessionId);
 
-      if (!session || session.isRevoked || session.expiresAt < new Date()) {
+      if (!sessionResult.valid) {
+        if (sessionResult.reason === 'REVOKED') {
+          return next(
+            new AppError('Session has been revoked. Please sign in again.', 401, ErrorCode.UNAUTHENTICATED)
+          );
+        }
         return next(
           new AppError('Session has expired or been terminated', 401, ErrorCode.UNAUTHENTICATED)
         );

@@ -11,10 +11,18 @@ import { ErrorCode } from '../../core/errors/error-codes';
 import { validateModuleDependencies } from '../../shared/constants/modules';
 import { prisma } from '../../core/database/prisma-client';
 import { sanitizeAuditPayload } from '../../core/security/audit-sanitizer';
+import { logger } from '../../core/logger/app-logger';
 
 export class OrganizationsService {
-  async getOrganizations(filters: OrganizationQueryFilters) {
-    return organizationsRepository.findAll(filters);
+  async getOrganizations(
+    filters: OrganizationQueryFilters,
+    isPlatformUser: boolean = true,
+    callerUserId?: string
+  ) {
+    if (isPlatformUser || !callerUserId) {
+      return organizationsRepository.findAll(filters);
+    }
+    return organizationsRepository.findAllForUser(callerUserId, filters);
   }
 
   async getOrganizationById(id: string, callerOrgId?: string, isPlatformUser: boolean = false) {
@@ -81,7 +89,7 @@ export class OrganizationsService {
     };
 
     // 2. Execute atomic provisioning transaction
-    const result = await organizationsRepository.createWithProvisioning(payload);
+    const result = await organizationsRepository.createWithProvisioning(payload, adminUserId);
 
     // 3. Create Audit Log entry
     await (prisma as any).auditLog.create({
@@ -99,7 +107,9 @@ export class OrganizationsService {
           subscriptionPlan: result.organization.subscriptionPlan,
         }),
       },
-    }).catch(() => {});
+    }).catch((err: any) => {
+      logger.error({ err, organizationId: result.organization.id }, 'Failed to record audit log for organization provisioning');
+    });
 
     return result;
   }
@@ -143,7 +153,9 @@ export class OrganizationsService {
           previousState: sanitizeAuditPayload(existing),
           newState: sanitizeAuditPayload(updated),
         },
-      }).catch(() => {});
+      }).catch((err: any) => {
+        logger.error({ err, organizationId: id }, 'Failed to record audit log for organization update');
+      });
     }
 
     return updated;
@@ -174,7 +186,9 @@ export class OrganizationsService {
         previousState: { status: existing.status },
         newState: { status: dto.status, reason: dto.reason },
       },
-    }).catch(() => {});
+    }).catch((err: any) => {
+      logger.error({ err, organizationId: id }, 'Failed to record audit log for organization status update');
+    });
 
     return updated;
   }
@@ -215,9 +229,27 @@ export class OrganizationsService {
         previousState: { modules: previousModules },
         newState: { modules: updatedModules },
       },
-    }).catch(() => {});
+    }).catch((err: any) => {
+      logger.error({ err, organizationId: id }, 'Failed to record audit log for organization modules update');
+    });
 
     return updatedModules;
+  }
+
+  async getActivity(id: string, callerOrgId?: string, isPlatformUser: boolean = false) {
+    if (!isPlatformUser && callerOrgId && callerOrgId !== id) {
+      throw AppError.forbidden(
+        'Cross-tenant access forbidden',
+        ErrorCode.TENANT_ACCESS_DENIED
+      );
+    }
+
+    const existing = await organizationsRepository.findById(id);
+    if (!existing) {
+      throw AppError.notFound('Organization not found', ErrorCode.TENANT_NOT_FOUND);
+    }
+
+    return organizationsRepository.getActivity(id);
   }
 }
 

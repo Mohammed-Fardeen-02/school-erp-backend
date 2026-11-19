@@ -16,11 +16,13 @@ export function requireTenantContext(options?: TenantContextOptions) {
         return next(AppError.unauthorized('Authentication required'));
       }
 
-      // 2. Extract Organization ID from headers, params, or body
+      // 2. Extract Organization ID from headers, query, params, or body
       const targetOrgId =
         (req.headers['x-organization-id'] as string) ||
-        (req.params.organizationId as string) ||
-        (req.params.schoolId as string);
+        (req.query?.organizationId as string) ||
+        (req.params?.organizationId as string) ||
+        (req.params?.schoolId as string) ||
+        (req.body?.organizationId as string);
 
       if (!targetOrgId) {
         return next(

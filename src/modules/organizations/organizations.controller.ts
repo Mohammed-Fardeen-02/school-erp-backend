@@ -12,7 +12,10 @@ export class OrganizationsController {
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
       };
 
-      const result = await organizationsService.getOrganizations(filters);
+      const isPlatformUser = req.user?.userType === 'PLATFORM' || req.user?.roles.includes('SUPER_ADMIN');
+      const callerUserId = req.user?.id;
+
+      const result = await organizationsService.getOrganizations(filters, Boolean(isPlatformUser), callerUserId);
       ResponseHelper.paginated(res, result.items, result.meta, 'Organizations retrieved successfully');
     } catch (error) {
       next(error);
@@ -101,6 +104,19 @@ export class OrganizationsController {
 
       const updatedModules = await organizationsService.updateModules(id, req.body, adminUserId);
       ResponseHelper.ok(res, updatedModules, 'Subscribed modules updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const isPlatformUser = req.user?.userType === 'PLATFORM';
+      const callerOrgId = req.organizationId;
+
+      const activity = await organizationsService.getActivity(id, callerOrgId, isPlatformUser);
+      ResponseHelper.ok(res, activity, 'Organization activity retrieved successfully');
     } catch (error) {
       next(error);
     }

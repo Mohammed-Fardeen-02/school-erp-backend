@@ -12,7 +12,7 @@ export class LocationsRepository {
    * Dual-key query retrieving all campuses strictly belonging to an organization.
    */
   async findByOrganization(organizationId: string, filters?: LocationQueryFilters) {
-    const where: any = { organizationId };
+    const where: any = organizationId === 'platform-control' ? {} : { organizationId };
 
     if (filters?.isActive !== undefined) {
       where.isActive = filters.isActive;
@@ -33,6 +33,13 @@ export class LocationsRepository {
     return this.locClient.findMany({
       where,
       orderBy: [{ isMainCampus: 'desc' }, { createdAt: 'asc' }],
+      include: {
+        _count: {
+          select: {
+            userRoles: true,
+          },
+        },
+      },
     });
   }
 
@@ -49,6 +56,34 @@ export class LocationsRepository {
             code: true,
             displayName: true,
             status: true,
+          },
+        },
+        _count: {
+          select: {
+            userRoles: true,
+          },
+        },
+        userRoles: {
+          where: { isActive: true },
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                isActive: true,
+              },
+            },
+            role: {
+              select: {
+                id: true,
+                roleName: true,
+                roleCode: true,
+                roleType: true,
+              },
+            },
           },
         },
       },

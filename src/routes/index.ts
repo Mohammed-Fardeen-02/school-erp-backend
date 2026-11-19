@@ -8,6 +8,9 @@ import { rolesRoutes } from '../modules/roles/roles.routes';
 import { permissionsRoutes } from '../modules/permissions/permissions.routes';
 import { userRolesRoutes } from '../modules/user-roles/user-roles.routes';
 import { settingsRoutes } from '../modules/settings/settings.routes';
+import { branchesRoutes } from '../modules/branches/branches.routes';
+import { usersRoutes } from '../modules/users/users.routes';
+import { auditLogsRoutes } from '../modules/audit-logs/audit-logs.routes';
 
 const apiRouter = Router();
 
@@ -26,6 +29,9 @@ apiRouter.use('/locations', locationsRoutes);
 // Multi-Tenant Workspace Discovery & Selection Routes
 apiRouter.use('/workspace', workspaceRoutes);
 
+// User Identity & Directory Lifecycle
+apiRouter.use('/users', usersRoutes);
+
 // Dynamic RBAC Roles Management
 apiRouter.use('/roles', rolesRoutes);
 
@@ -37,5 +43,12 @@ apiRouter.use('/user-roles', userRolesRoutes);
 
 // Institutional Settings & Integrations
 apiRouter.use('/settings', settingsRoutes);
+
+// Academics & Institutional Branches Master
+apiRouter.use('/branches', branchesRoutes);
+apiRouter.use('/academics/branches', branchesRoutes);
+
+// Audit & Compliance Logs Forensics
+apiRouter.use('/audit-logs', auditLogsRoutes);
 
 export default apiRouter;

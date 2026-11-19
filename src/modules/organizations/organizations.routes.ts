@@ -4,6 +4,7 @@ import { authenticate } from '../../core/middleware/authenticate';
 import { authorizeRoles } from '../../core/middleware/authorize';
 import { requireTenantContext } from '../../core/middleware/tenant-context';
 import { requireTenantOwner } from '../../core/middleware/tenant-admin';
+import { requirePermission } from '../../core/middleware/permission.middleware';
 import { validateRequest } from '../../core/middleware/validate-request';
 import {
   createOrganizationSchema,
@@ -22,7 +23,6 @@ export const organizationsRoutes: Router = Router();
 organizationsRoutes.get(
   '/',
   authenticate,
-  authorizeRoles('SUPER_ADMIN'),
   validateRequest({ query: organizationQuerySchema }),
   organizationsController.list
 );
@@ -30,7 +30,6 @@ organizationsRoutes.get(
 organizationsRoutes.post(
   '/',
   authenticate,
-  authorizeRoles('SUPER_ADMIN'),
   validateRequest({ body: createOrganizationSchema }),
   organizationsController.create
 );
@@ -76,5 +75,13 @@ organizationsRoutes.get(
   authenticate,
   requireTenantContext(),
   organizationsController.getModules
+);
+
+organizationsRoutes.get(
+  '/:id/activity',
+  authenticate,
+  requireTenantContext(),
+  requirePermission('settings.audit_logs.trail.view'),
+  organizationsController.getActivity
 );
 
