@@ -43,3 +43,4 @@ describe('CORS Configuration Suite', () => {
     expect(callback).toHaveBeenCalledWith(null, false);
   });
 });
+

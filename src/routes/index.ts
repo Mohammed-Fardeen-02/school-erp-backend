@@ -9,6 +9,7 @@ import { permissionsRoutes } from '../modules/permissions/permissions.routes';
 import { userRolesRoutes } from '../modules/user-roles/user-roles.routes';
 import { settingsRoutes } from '../modules/settings/settings.routes';
 import { branchesRoutes } from '../modules/branches/branches.routes';
+import { usersRoutes } from '../modules/users/users.routes';
 
 const apiRouter = Router();
 
@@ -26,6 +27,9 @@ apiRouter.use('/locations', locationsRoutes);
 
 // Multi-Tenant Workspace Discovery & Selection Routes
 apiRouter.use('/workspace', workspaceRoutes);
+
+// User Identity & Directory Lifecycle
+apiRouter.use('/users', usersRoutes);
 
 // Dynamic RBAC Roles Management
 apiRouter.use('/roles', rolesRoutes);
